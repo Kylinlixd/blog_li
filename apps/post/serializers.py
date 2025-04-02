@@ -8,31 +8,63 @@ class TagSerializer(serializers.ModelSerializer):
         model = Tag
         fields = ['id', 'name']
 
-class PostSerializer(serializers.ModelSerializer):
+class PostListSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
-    tagIds = serializers.PrimaryKeyRelatedField(
-        queryset=Tag.objects.all(),
-        source='tags',
-        many=True,
-        write_only=True
-    )
-    categoryId = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.all(),
-        source='category'
-    )
     categoryName = serializers.CharField(source='category.name', read_only=True)
-    createdAt = serializers.DateTimeField(source='create_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
-    updatedAt = serializers.DateTimeField(source='update_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
+    createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
+    updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
+    categoryId = serializers.IntegerField(source='category.id', read_only=True)
+    viewCount = serializers.IntegerField(source='views', read_only=True)
     
     class Meta:
         model = Post
-        fields = ['id', 'title', 'content', 'summary', 'categoryId', 'categoryName', 
-                  'tags', 'tagIds', 'status', 'views', 'createdAt', 'updatedAt']
-        read_only_fields = ['author', 'createdAt', 'updatedAt']
+        fields = ['id', 'title', 'summary', 'createTime', 'updateTime', 
+                 'categoryId', 'categoryName', 'viewCount', 'tags']
+
+class PostDetailSerializer(serializers.ModelSerializer):
+    tags = TagSerializer(many=True, read_only=True)
+    categoryName = serializers.CharField(source='category.name', read_only=True)
+    createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
+    updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
+    categoryId = serializers.IntegerField(source='category.id', read_only=True)
+    viewCount = serializers.IntegerField(source='views', read_only=True)
+    
+    class Meta:
+        model = Post
+        fields = ['id', 'title', 'content', 'summary', 'createTime', 'updateTime', 
+                 'categoryId', 'categoryName', 'viewCount', 'tags']
+
+class AdjacentPostSerializer(serializers.Serializer):
+    prev = serializers.SerializerMethodField()
+    next = serializers.SerializerMethodField()
+    
+    def get_prev(self, obj):
+        if obj['prev']:
+            return {
+                'id': obj['prev'].id,
+                'title': obj['prev'].title
+            }
+        return None
+    
+    def get_next(self, obj):
+        if obj['next']:
+            return {
+                'id': obj['next'].id,
+                'title': obj['next'].title
+            }
+        return None
+
+class HotPostSerializer(serializers.ModelSerializer):
+    createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
+    viewCount = serializers.IntegerField(source='views', read_only=True)
+    
+    class Meta:
+        model = Post
+        fields = ['id', 'title', 'viewCount', 'createTime']
 
 class RecentPostSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(source='create_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
+    createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     
     class Meta:
         model = Post
-        fields = ['id', 'title', 'views', 'createdAt']
+        fields = ['id', 'title', 'createTime']
