@@ -44,7 +44,36 @@ python manage.py runserver
 
 ### 认证相关
 
-#### 1. 用户登录
+#### 1. 用户注册
+- 接口: `/api/auth/register`
+- 方法: POST
+- 描述: 用户注册接口
+- 请求参数:
+```json
+{
+  "username": "string", // 用户名
+  "password": "string", // 密码
+  "nickname": "string"  // 昵称
+}
+```
+- 响应数据:
+```json
+{
+  "code": 200,
+  "data": {
+    "token": "string",      // JWT token
+    "userInfo": {
+      "id": "number",       // 用户ID
+      "username": "string", // 用户名
+      "nickname": "string", // 昵称
+      "avatar": "string"    // 头像URL
+    }
+  },
+  "message": "string"
+}
+```
+
+#### 2. 用户登录
 - 接口: `/api/auth/login`
 - 方法: POST
 - 描述: 用户登录接口
@@ -72,7 +101,7 @@ python manage.py runserver
 }
 ```
 
-#### 2. 获取用户信息
+#### 3. 获取用户信息
 - 接口: `/api/auth/info`
 - 方法: GET
 - 描述: 获取当前登录用户信息
@@ -91,7 +120,7 @@ python manage.py runserver
 }
 ```
 
-#### 3. 修改密码
+#### 4. 修改密码
 - 接口: `/api/auth/password`
 - 方法: PUT
 - 描述: 修改用户密码
@@ -328,5 +357,26 @@ python manage.py runserver
     "id": "number"
   },
   "message": "string"
+}
+```
+
+### 仪表盘统计
+
+#### 1. 获取统计数据
+- 接口: `/api/stats`
+- 方法: GET
+- 描述: 获取博客统计数据，包括文章、分类、标签数量和总浏览量
+- 请求头: `Authorization: Bearer {token}`
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "获取统计数据成功",
+  "data": {
+    "postCount": 24,       // 文章总数
+    "categoryCount": 6,    // 分类总数
+    "tagCount": 18,        // 标签总数
+    "totalViews": 4328     // 总浏览量
+  }
 }
 ``` 

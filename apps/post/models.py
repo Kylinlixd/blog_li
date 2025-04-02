@@ -14,6 +14,7 @@ class Post(models.Model):
     tags = models.ManyToManyField('tag.Tag')
     author = models.ForeignKey('user.User', on_delete=models.CASCADE)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    views = models.PositiveIntegerField(default=0)
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
     

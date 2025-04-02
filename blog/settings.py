@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -49,6 +50,9 @@ INSTALLED_APPS = [
     'apps.post.apps.PostConfig',
     'apps.category.apps.CategoryConfig',
     'apps.tag.apps.TagConfig',
+    'apps.dashboard.apps.DashboardConfig',
+    'apps.comment.apps.CommentConfig',
+    'apps.upload.apps.UploadConfig',
 ]
 
 MIDDLEWARE = [
@@ -163,3 +167,7 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# 媒体文件配置
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

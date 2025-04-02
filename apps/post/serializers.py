@@ -21,11 +21,18 @@ class PostSerializer(serializers.ModelSerializer):
         source='category'
     )
     categoryName = serializers.CharField(source='category.name', read_only=True)
-    createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
-    updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
+    createdAt = serializers.DateTimeField(source='create_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
+    updatedAt = serializers.DateTimeField(source='update_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
     
     class Meta:
         model = Post
         fields = ['id', 'title', 'content', 'summary', 'categoryId', 'categoryName', 
-                  'tags', 'tagIds', 'status', 'createTime', 'updateTime']
-        read_only_fields = ['author', 'createTime', 'updateTime']
+                  'tags', 'tagIds', 'status', 'views', 'createdAt', 'updatedAt']
+        read_only_fields = ['author', 'createdAt', 'updatedAt']
+
+class RecentPostSerializer(serializers.ModelSerializer):
+    createdAt = serializers.DateTimeField(source='create_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
+    
+    class Meta:
+        model = Post
+        fields = ['id', 'title', 'views', 'createdAt']
