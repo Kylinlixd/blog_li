@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from serializers import LoginSerializer,UserSerializer,ChangePasswordSerializer
+from apps.user.serializers import LoginSerializer,UserSerializer,ChangePasswordSerializer
 
 # Create your views here.
 class LoginView(APIView):

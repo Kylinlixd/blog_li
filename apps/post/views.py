@@ -1,8 +1,9 @@
-from models import Post 
+from apps.post.models import Post 
 from rest_framework.permissions import IsAuthenticated
 # Create your views here.
 from rest_framework.viewsets import ModelViewSet
-from serializers import PostSerializer
+from apps.post.serializers import PostSerializer
+from django.db.models import Q
 
 
 class PostViewSet(ModelViewSet):
