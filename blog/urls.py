@@ -21,6 +21,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.user.views import *
 from apps.post.views import *
 from apps.category.views import *
+from apps.tag.views import *
 
 
 urlpatterns = [
@@ -34,11 +35,17 @@ urlpatterns = [
         'post': 'create'
     })),
     path('api/posts/<int:pk>', PostViewSet.as_view({
+        'get': 'retrieve',
         'put': 'update',
         'delete': 'destroy'
     })),
     
     path('api/categories', CategoryViewSet.as_view({
+        'get': 'list',
+        'post': 'create'
+    })),
+    
+    path('api/tags', TagViewSet.as_view({
         'get': 'list',
         'post': 'create'
     })),
