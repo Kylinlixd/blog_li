@@ -46,9 +46,9 @@ INSTALLED_APPS = [
     
     # 自定义应用
     'apps.user.apps.UserConfig',
-    'apps.post',
-    'apps.category',
-    'apps.tag',
+    'apps.post.apps.PostConfig',
+    'apps.category.apps.CategoryConfig',
+    'apps.tag.apps.TagConfig',
 ]
 
 MIDDLEWARE = [

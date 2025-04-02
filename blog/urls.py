@@ -16,7 +16,32 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
+
+from apps.user.views import *
+from apps.post.views import *
+from apps.category.views import *
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/auth/login', LoginView.as_view()),
+    path('api/auth/info', UserInfoView.as_view()),
+    path('api/auth/password', ChangePasswordView.as_view()),
+    
+    path('api/posts', PostViewSet.as_view({
+        'get': 'list',
+        'post': 'create'
+    })),
+    path('api/posts/<int:pk>', PostViewSet.as_view({
+        'put': 'update',
+        'delete': 'destroy'
+    })),
+    
+    path('api/categories', CategoryViewSet.as_view({
+        'get': 'list',
+        'post': 'create'
+    })),
+    
+    path('api/token/refresh', TokenRefreshView.as_view()),
 ]
