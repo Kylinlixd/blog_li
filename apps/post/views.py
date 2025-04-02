@@ -1,6 +1,6 @@
 from apps.post.models import Post 
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.viewsets import ReadOnlyModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from apps.post.serializers import (
     PostListSerializer, PostDetailSerializer, AdjacentPostSerializer,
     HotPostSerializer, RecentPostSerializer
@@ -32,9 +32,10 @@ class PostPagination(PageNumberPagination):
         })
 
 
-class PostViewSet(ReadOnlyModelViewSet):
+class PostViewSet(ModelViewSet):
     queryset = Post.objects.filter(status='published')
     pagination_class = PostPagination
+    permission_classes = [AllowAny]
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -64,6 +65,35 @@ class PostViewSet(ReadOnlyModelViewSet):
             'code': 200,
             'message': 'success',
             'data': serializer.data
+        })
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response({
+            'code': 200,
+            'message': '创建文章成功',
+            'data': {'id': serializer.instance.id}
+        })
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response({
+            'code': 200,
+            'message': '更新文章成功'
+        })
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({
+            'code': 200,
+            'message': '删除文章成功'
         })
     
     @action(detail=True, methods=['get'])

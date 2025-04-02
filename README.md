@@ -379,4 +379,266 @@ python manage.py runserver
     "totalViews": 4328     // 总浏览量
   }
 }
-``` 
+```
+
+### 前台API接口
+
+前台API接口不需要认证，可直接访问。
+
+#### 1. 获取文章列表
+- 接口: `/blog/posts/`
+- 方法: GET
+- 描述: 获取已发布的文章列表，支持分页和搜索
+- 请求参数:
+  - `page`: number (页码，默认1)
+  - `pageSize`: number (每页数量，默认10)
+  - `keyword`: string (搜索关键词)
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "total": "number",
+    "items": [{
+      "id": "number",
+      "title": "string",
+      "summary": "string",
+      "categoryId": "number",
+      "categoryName": "string",
+      "viewCount": "number",
+      "tags": [{
+        "id": "number",
+        "name": "string"
+      }],
+      "createTime": "string",
+      "updateTime": "string"
+    }]
+  }
+}
+```
+
+#### 2. 获取文章详情
+- 接口: `/blog/posts/{id}/`
+- 方法: GET
+- 描述: 获取文章详情
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": "number",
+    "title": "string",
+    "content": "string",
+    "summary": "string",
+    "categoryId": "number",
+    "categoryName": "string",
+    "viewCount": "number",
+    "tags": [{
+      "id": "number",
+      "name": "string"
+    }],
+    "createTime": "string",
+    "updateTime": "string"
+  }
+}
+```
+
+#### 3. 获取相邻文章
+- 接口: `/blog/posts/{id}/adjacent/`
+- 方法: GET
+- 描述: 获取当前文章的上一篇和下一篇
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "prev": {
+      "id": "number",
+      "title": "string"
+    },
+    "next": {
+      "id": "number",
+      "title": "string"
+    }
+  }
+}
+```
+
+#### 4. 增加文章浏览量
+- 接口: `/blog/posts/{id}/view/`
+- 方法: POST
+- 描述: 增加文章浏览量
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": null
+}
+```
+
+#### 5. 获取最新文章
+- 接口: `/blog/posts/recent`
+- 方法: GET
+- 描述: 获取最新发布的文章列表
+- 请求参数:
+  - `limit`: number (返回数量，默认5，最大20)
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [{
+    "id": "number",
+    "title": "string",
+    "createTime": "string"
+  }]
+}
+```
+
+#### 6. 获取热门文章
+- 接口: `/blog/posts/hot`
+- 方法: GET
+- 描述: 获取浏览量最高的文章列表
+- 请求参数:
+  - `limit`: number (返回数量，默认5，最大20)
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [{
+    "id": "number",
+    "title": "string",
+    "viewCount": "number",
+    "createTime": "string"
+  }]
+}
+```
+
+#### 7. 获取分类下的文章
+- 接口: `/blog/categories/{categoryId}/posts`
+- 方法: GET
+- 描述: 获取指定分类下的文章列表
+- 请求参数:
+  - `page`: number (页码，默认1)
+  - `pageSize`: number (每页数量，默认10)
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "total": "number",
+    "items": [{
+      "id": "number",
+      "title": "string",
+      "summary": "string",
+      "categoryId": "number",
+      "categoryName": "string",
+      "viewCount": "number",
+      "tags": [{
+        "id": "number",
+        "name": "string"
+      }],
+      "createTime": "string",
+      "updateTime": "string"
+    }]
+  }
+}
+```
+
+#### 8. 获取标签下的文章
+- 接口: `/blog/tags/{tagId}/posts`
+- 方法: GET
+- 描述: 获取指定标签下的文章列表
+- 请求参数:
+  - `page`: number (页码，默认1)
+  - `pageSize`: number (每页数量，默认10)
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "total": "number",
+    "items": [{
+      "id": "number",
+      "title": "string",
+      "summary": "string",
+      "categoryId": "number",
+      "categoryName": "string",
+      "viewCount": "number",
+      "tags": [{
+        "id": "number",
+        "name": "string"
+      }],
+      "createTime": "string",
+      "updateTime": "string"
+    }]
+  }
+}
+```
+
+#### 9. 获取统计信息
+- 接口: `/blog/stats`
+- 方法: GET
+- 描述: 获取博客统计信息（文章总数、分类总数、标签总数等）
+- 响应数据:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "postCount": "number",
+    "categoryCount": "number",
+    "tagCount": "number",
+    "commentCount": "number",
+    "viewCount": "number"
+  }
+}
+```
+
+#### 10. 获取分类列表
+- 接口: `/api/categories`
+- 方法: GET
+- 描述: 获取所有分类列表
+- 响应数据:
+```json
+{
+  "code": 200,
+  "data": [{
+    "id": "number",
+    "name": "string",
+    "description": "string",
+    "postCount": "number"
+  }],
+  "message": "获取分类列表成功"
+}
+```
+
+#### 11. 获取标签列表
+- 接口: `/api/tags`
+- 方法: GET
+- 描述: 获取所有标签列表
+- 响应数据:
+```json
+{
+  "code": 200,
+  "data": [{
+    "id": "number",
+    "name": "string"
+  }],
+  "message": "获取标签列表成功"
+}
+```
+
+#### 12. 评论相关接口
+- 获取评论列表: `/api/comments` (GET)
+- 提交评论: `/api/comments` (POST)
+- 响应数据格式与后台API一致
+
+> 注意：前台接口不需要认证，所有用户都可以访问。 
