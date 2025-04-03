@@ -70,6 +70,7 @@ class PostViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        serializer.save(author=self.request.user)
         self.perform_create(serializer)
         return Response({
             'code': 200,

@@ -18,7 +18,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework.routers import DefaultRouter
 
 from apps.user.views import *
@@ -47,9 +46,9 @@ urlpatterns = [
     path('', include(router.urls)),
     path('blog/posts/hot', HotPostsView.as_view()),
     path('blog/posts/recent', RecentPostsView.as_view()),
-    path('blog/categories/<int:categoryId>/posts', CategoryPostsView.as_view()),
-    path('blog/tags/<int:tagId>/posts', TagPostsView.as_view()),
-    path('blog/stats', StatsView.as_view()),
+    path('api/blog/categories/<int:categoryId>/posts', CategoryPostsView.as_view()),
+    path('api/blog/tags/<int:tagId>/posts', TagPostsView.as_view()),
+    path('api/blog/stats', StatsView.as_view()),
     
     # 后台管理API
     path('api/posts', PostViewSet.as_view({

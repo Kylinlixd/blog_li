@@ -15,11 +15,12 @@ class PostListSerializer(serializers.ModelSerializer):
     updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     categoryId = serializers.IntegerField(source='category.id', read_only=True)
     viewCount = serializers.IntegerField(source='views', read_only=True)
-    
+    authorId = serializers.IntegerField(source='author.id', read_only=True)
+
     class Meta:
         model = Post
         fields = ['id', 'title', 'summary', 'createTime', 'updateTime', 
-                 'categoryId', 'categoryName', 'viewCount', 'tags']
+                 'categoryId', 'categoryName', 'viewCount', 'tags', 'authorId']
 
 class PostDetailSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
