@@ -91,6 +91,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'blog.wsgi.application'
 
+LOGGING = {
+    'version': 1,
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django.db.backends': {
+            'level': 'DEBUG',
+            'handlers': ['console'],
+        },
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -101,7 +116,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': os.getenv('DB_NAME','blog'),
         'USER': os.getenv('DB_USER','root'),
-        'PASSWORD': os.getenv('DB_PASSWORD',''),
+        'PASSWORD': os.getenv('DB_PASSWORD','a821431095'),
         'HOST': os.getenv('DB_HOST','localhost'),
         'PORT': os.getenv('DB_PORT','3306'),
     }
@@ -166,6 +181,7 @@ LANGUAGE_CODE = 'zh-hans'  # 简体中文
 TIME_ZONE = 'Asia/Shanghai'  # 中国时区
 USE_I18N = True
 USE_TZ = True  # 保持 True，确保数据库存储 UTC 时间
+
 
 
 # Static files (CSS, JavaScript, Images)
