@@ -91,36 +91,48 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'blog.wsgi.application'
 
-LOGGING = {
-    'version': 1,
-    'handlers': {
-        'console': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'loggers': {
-        'django.db.backends': {
-            'level': 'DEBUG',
-            'handlers': ['console'],
-        },
-    },
-}
+# LOGGING = {
+#     'version': 1,
+#     'handlers': {
+#         'console': {
+#             'level': 'DEBUG',
+#             'class': 'logging.StreamHandler',
+#         },
+#     },
+#     'loggers': {
+#         'django.db.backends': {
+#             'level': 'DEBUG',
+#             'handlers': ['console'],
+#         },
+#     },
+# }
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 # 数据库配置
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': os.getenv('DB_NAME','blog'),
+#         'USER': os.getenv('DB_USER','root'),
+#         'PASSWORD': os.getenv('DB_PASSWORD','a821431095'),
+#         'HOST': os.getenv('DB_HOST','localhost'),
+#         'PORT': os.getenv('DB_PORT','3306'),
+#     }
+# }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('DB_NAME','blog'),
-        'USER': os.getenv('DB_USER','root'),
-        'PASSWORD': os.getenv('DB_PASSWORD','a821431095'),
-        'HOST': os.getenv('DB_HOST','localhost'),
-        'PORT': os.getenv('DB_PORT','3306'),
+        'NAME': 'blog',
+        'USER': 'root',
+        'PASSWORD': 'a821431095',
+        'HOST': '127.0.0.1',
+        'PORT': '3306',
     }
 }
+
 
 # 测试数据库配置
 if 'test' in sys.argv:
