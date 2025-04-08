@@ -13,7 +13,7 @@ class StatsView(APIView):
     """
     获取博客统计数据API
     """
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
     
     def get(self, request):
         # 获取文章总数
