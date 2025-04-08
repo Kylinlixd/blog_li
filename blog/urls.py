@@ -48,7 +48,7 @@ urlpatterns = [
     path('blog/posts/recent', RecentPostsView.as_view()),
     path('api/blog/categories/<int:categoryId>/posts', CategoryPostsView.as_view()),
     path('api/blog/tags/<int:tagId>/posts', TagPostsView.as_view()),
-    path('/blog/stats', StatsView.as_view()),
+    path('api/stats', StatsView.as_view()),
     
     # 后台管理API
     path('api/posts', PostViewSet.as_view({
