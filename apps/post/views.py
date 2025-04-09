@@ -72,8 +72,7 @@ class PostViewSet(ModelViewSet):
         try:
             tag_ids = request.data.pop('tagIds', [])
             serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True){'tagIds': [ErrorDetail(string='该字段是必填项。', code='required')]}
-            
+            serializer.is_valid(raise_exception=True)
             post = serializer.save(author=self.request.user)
             if tag_ids:
                 tags = Tag.objects.filter(id__in=tag_ids)
