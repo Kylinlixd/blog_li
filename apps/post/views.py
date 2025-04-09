@@ -73,7 +73,7 @@ class PostViewSet(ModelViewSet):
             tag_ids = request.data.pop('tags',[])
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save(author=self.request.user)
+            post = serializer.save(author=self.request.user)
             if tag_ids:
                 tags = Tag.objects.filter(id__in=tag_ids)
                 post.tags.set(tags)
@@ -92,9 +92,14 @@ class PostViewSet(ModelViewSet):
         try:
             partial = kwargs.pop('partial', False)
             instance = self.get_object()
+            tag_ids = request.data.pop('tags', [])
             serializer = self.get_serializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
+            post = serializer.save()
             # self.perform_update(serializer)
+            if tag_ids:
+                tags = Tag.objects.filter(id__in=tag_ids)
+                post.tags.set(tags)
             return Response({
                 'code': 200,
                 'message': '更新文章成功'

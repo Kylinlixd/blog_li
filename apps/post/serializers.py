@@ -9,7 +9,7 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 class PostListSerializer(serializers.ModelSerializer):
-    tags = TagSerializer(many=True, read_only=True)
+    tagIds = TagSerializer(many=True, read_only=True)
     categoryName = serializers.CharField(source='category.name', read_only=True)
     createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
@@ -21,10 +21,10 @@ class PostListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = ['id', 'title', 'summary', 'createTime', 'updateTime', 
-                 'categoryId', 'categoryName', 'viewCount', 'tags', 'authorId','content']
+                 'categoryId', 'categoryName', 'viewCount', 'tagIds', 'authorId','content']
 
 class PostDetailSerializer(serializers.ModelSerializer):
-    tags = TagSerializer(many=True, read_only=True)
+    tagIds = TagSerializer(many=True, read_only=True)
     categoryName = serializers.CharField(source='category.name', read_only=True)
     createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
@@ -35,7 +35,7 @@ class PostDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = ['id', 'title', 'content', 'summary', 'createTime', 'updateTime', 
-                 'categoryId', 'categoryName', 'viewCount', 'tags','content']
+                 'categoryId', 'categoryName', 'viewCount', 'tagIds','content']
 
 class AdjacentPostSerializer(serializers.Serializer):
     prev = serializers.SerializerMethodField()
