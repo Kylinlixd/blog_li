@@ -70,10 +70,14 @@ class PostViewSet(ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         try:
+            tag_ids = request.data.pop('tags',[])
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             serializer.save(author=self.request.user)
-            self.perform_create(serializer)
+            if tag_ids:
+                tags = Tag.objects.filter(id__in=tag_ids)
+                post.tags.set(tags)
+            # self.perform_create(serializer)
             return Response({
                 'message': '创建文章成功',
                 'data': {'id': serializer.instance.id}
@@ -85,15 +89,20 @@ class PostViewSet(ModelViewSet):
         
     
     def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response({
-            'code': 200,
-            'message': '更新文章成功'
-        })
+        try:
+            partial = kwargs.pop('partial', False)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            # self.perform_update(serializer)
+            return Response({
+                'code': 200,
+                'message': '更新文章成功'
+            })
+        except Exception as e:
+            return Response({
+                'message': f'更新文章失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
     
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
