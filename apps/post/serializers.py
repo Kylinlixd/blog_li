@@ -9,7 +9,10 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 class PostListSerializer(serializers.ModelSerializer):
-    tagIds = TagSerializer(many=True, read_only=True)
+    tagIds = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Tag.objects.all(),required=False # 允许的标签查询集
+    )
     categoryName = serializers.CharField(source='category.name', read_only=True)
     createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
@@ -24,7 +27,10 @@ class PostListSerializer(serializers.ModelSerializer):
                  'categoryId', 'categoryName', 'viewCount', 'tagIds', 'authorId','content']
 
 class PostDetailSerializer(serializers.ModelSerializer):
-    tagIds = TagSerializer(many=True, read_only=True)
+    tagIds = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Tag.objects.all(), required=False # 允许的标签查询集
+    )
     categoryName = serializers.CharField(source='category.name', read_only=True)
     createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
