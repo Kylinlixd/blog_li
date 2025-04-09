@@ -7,6 +7,7 @@ from apps.post.serializers import (
 )
 from django.db.models import Q, F
 from rest_framework.response import Response
+from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.views import APIView
@@ -68,15 +69,20 @@ class PostViewSet(ModelViewSet):
         })
     
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(author=self.request.user)
-        self.perform_create(serializer)
-        return Response({
-            'code': 200,
-            'message': '创建文章成功',
-            'data': {'id': serializer.instance.id}
-        })
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(author=self.request.user)
+            self.perform_create(serializer)
+            return Response({
+                'message': '创建文章成功',
+                'data': {'id': serializer.instance.id}
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({
+                'message': f'创建文章失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
     
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)

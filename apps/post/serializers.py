@@ -16,11 +16,12 @@ class PostListSerializer(serializers.ModelSerializer):
     categoryId = serializers.IntegerField(source='category.id', read_only=True)
     viewCount = serializers.IntegerField(source='views', read_only=True)
     authorId = serializers.IntegerField(source='author.id', read_only=True)
+    content = serializers.CharField()
 
     class Meta:
         model = Post
         fields = ['id', 'title', 'summary', 'createTime', 'updateTime', 
-                 'categoryId', 'categoryName', 'viewCount', 'tags', 'authorId']
+                 'categoryId', 'categoryName', 'viewCount', 'tags', 'authorId','content']
 
 class PostDetailSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
@@ -29,11 +30,12 @@ class PostDetailSerializer(serializers.ModelSerializer):
     updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     categoryId = serializers.IntegerField(source='category.id', read_only=True)
     viewCount = serializers.IntegerField(source='views', read_only=True)
+    content = serializers.CharField()
     
     class Meta:
         model = Post
         fields = ['id', 'title', 'content', 'summary', 'createTime', 'updateTime', 
-                 'categoryId', 'categoryName', 'viewCount', 'tags']
+                 'categoryId', 'categoryName', 'viewCount', 'tags','content']
 
 class AdjacentPostSerializer(serializers.Serializer):
     prev = serializers.SerializerMethodField()
