@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+__pycache__/*
 *.py[cod]
 *$py.class
 *.so
@@ -40,3 +40,4 @@ static/
 # 操作系统
 .DS_Store
 Thumbs.db 
+apps/post/__pycache__/views.cpython-311.pyc
