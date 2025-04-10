@@ -34,7 +34,7 @@ class PostPagination(PageNumberPagination):
 
 
 class PostViewSet(ModelViewSet):
-    queryset = Post.objects.filter(status='published')
+    queryset = Post.objects.all()  # 默认返回所有文章
     pagination_class = PostPagination
     permission_classes = [AllowAny]
     
@@ -45,14 +45,20 @@ class PostViewSet(ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
-        keyword = self.request.query_params.get('keyword', None)
         
+        # 如果是前台接口，只返回已发布的文章
+        if self.request.path.startswith('/blog/posts'):
+            queryset = queryset.filter(status='published')
+            
+        # 搜索关键词过滤
+        keyword = self.request.query_params.get('keyword', None)
         if keyword:
             queryset = queryset.filter(
                 Q(title__icontains=keyword) | 
                 Q(content__icontains=keyword) |
                 Q(summary__icontains=keyword)
             )
+            
         return queryset
     
     def retrieve(self, request, *args, **kwargs):
@@ -77,16 +83,16 @@ class PostViewSet(ModelViewSet):
             if tag_ids:
                 tags = Tag.objects.filter(id__in=tag_ids)
                 post.tags.set(tags)
-            # self.perform_create(serializer)
             return Response({
+                'code': 200,
                 'message': '创建文章成功',
                 'data': {'id': serializer.instance.id}
-            }, status=status.HTTP_201_CREATED)
+            })
         except Exception as e:
             return Response({
+                'code': 500,
                 'message': f'创建文章失败: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+            })
     
     def update(self, request, *args, **kwargs):
         try:
@@ -96,7 +102,6 @@ class PostViewSet(ModelViewSet):
             serializer = self.get_serializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
             post = serializer.save()
-            # self.perform_update(serializer)
             if tag_ids:
                 tags = Tag.objects.filter(id__in=tag_ids)
                 post.tags.set(tags)
@@ -106,8 +111,9 @@ class PostViewSet(ModelViewSet):
             })
         except Exception as e:
             return Response({
+                'code': 500,
                 'message': f'更新文章失败: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+            })
     
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
