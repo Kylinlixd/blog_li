@@ -202,14 +202,15 @@ class CategoryPostsView(APIView):
     pagination_class = PostPagination
     
     def get(self, request, categoryId):
-        category = get_object_or_404(Category, id=categoryId)
-        posts = Post.objects.filter(status='published', category=category)
-        
-        paginator = self.pagination_class()
-        result_page = paginator.paginate_queryset(posts, request)
-        serializer = PostListSerializer(result_page, many=True)
-        
-        return paginator.get_paginated_response(serializer.data)
+        try:
+            category = Category.objects.get(pk=categoryId)
+            posts = Post.objects.filter(category=category).order_by('-create_time')
+            paginator = self.pagination_class()
+            result = paginator.paginate_queryset(posts, request)
+            serializer = PostListSerializer(result, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        except Category.DoesNotExist:
+            return Response({'code': 404, 'message': '分类不存在'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class TagPostsView(APIView):
@@ -217,11 +218,12 @@ class TagPostsView(APIView):
     pagination_class = PostPagination
     
     def get(self, request, tagId):
-        tag = get_object_or_404(Tag, id=tagId)
-        posts = Post.objects.filter(status='published', tags=tag)
-        
-        paginator = self.pagination_class()
-        result_page = paginator.paginate_queryset(posts, request)
-        serializer = PostListSerializer(result_page, many=True)
-        
-        return paginator.get_paginated_response(serializer.data)
+        try:
+            tag = Tag.objects.get(pk=tagId)
+            posts = Post.objects.filter(tags=tag).order_by('-create_time')
+            paginator = self.pagination_class()
+            result = paginator.paginate_queryset(posts, request)
+            serializer = PostListSerializer(result, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        except Tag.DoesNotExist:
+            return Response({'code': 404, 'message': '标签不存在'}, status=status.HTTP_404_NOT_FOUND)

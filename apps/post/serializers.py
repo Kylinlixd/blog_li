@@ -13,6 +13,7 @@ class PostListSerializer(serializers.ModelSerializer):
         many=True,
         queryset=Tag.objects.all(),required=False # 允许的标签查询集
     )
+    tags = TagSerializer(many=True, read_only=True)
     categoryName = serializers.CharField(source='category.name', read_only=True)
     createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
@@ -20,28 +21,31 @@ class PostListSerializer(serializers.ModelSerializer):
     viewCount = serializers.IntegerField(source='views', read_only=True)
     authorId = serializers.IntegerField(source='author.id', read_only=True)
     content = serializers.CharField()
+    status = serializers.CharField()
 
     class Meta:
         model = Post
         fields = ['id', 'title', 'summary', 'createTime', 'updateTime', 
-                 'categoryId', 'categoryName', 'viewCount', 'tagIds', 'authorId','content']
+                 'categoryId', 'categoryName', 'viewCount', 'tagIds', 'tags', 'authorId', 'content', 'status']
 
 class PostDetailSerializer(serializers.ModelSerializer):
     tagIds = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Tag.objects.all(), required=False # 允许的标签查询集
     )
+    tags = TagSerializer(many=True, read_only=True)
     categoryName = serializers.CharField(source='category.name', read_only=True)
     createTime = serializers.DateTimeField(source='create_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     updateTime = serializers.DateTimeField(source='update_time', format="%Y-%m-%dT%H:%M:%S.%fZ", read_only=True)
     categoryId = serializers.IntegerField(source='category.id', read_only=True)
     viewCount = serializers.IntegerField(source='views', read_only=True)
     content = serializers.CharField()
+    status = serializers.CharField()
     
     class Meta:
         model = Post
         fields = ['id', 'title', 'content', 'summary', 'createTime', 'updateTime', 
-                 'categoryId', 'categoryName', 'viewCount', 'tagIds','content']
+                 'categoryId', 'categoryName', 'viewCount', 'tagIds', 'tags', 'content', 'status']
 
 class AdjacentPostSerializer(serializers.Serializer):
     prev = serializers.SerializerMethodField()

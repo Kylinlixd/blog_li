@@ -133,7 +133,7 @@ class PostAPITests(TransactionTestCase):
     
     def test_get_category_posts(self):
         """测试获取分类下的文章"""
-        url = f'/blog/categories/{self.category.pk}/posts'
+        url = f'/api/blog/categories/{self.category.pk}/posts'
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -145,7 +145,7 @@ class PostAPITests(TransactionTestCase):
     
     def test_get_tag_posts(self):
         """测试获取标签下的文章"""
-        url = f'/blog/tags/{self.tag.pk}/posts'
+        url = f'/api/blog/tags/{self.tag.pk}/posts'
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
