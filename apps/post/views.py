@@ -2,7 +2,7 @@ from apps.post.models import Post
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from apps.post.serializers import (
-    PostListSerializer, PostDetailSerializer, AdjacentPostSerializer,
+    PostSerializer, AdjacentPostSerializer,
     HotPostSerializer, RecentPostSerializer
 )
 from django.db.models import Q, F
@@ -34,88 +34,60 @@ class PostPagination(PageNumberPagination):
 
 
 class PostViewSet(ModelViewSet):
-    queryset = Post.objects.all()  # 默认返回所有文章
-    pagination_class = PostPagination
+    queryset = Post.objects.all()
+    serializer_class = PostSerializer
     permission_classes = [AllowAny]
-    
-    def get_serializer_class(self):
-        if self.action == 'retrieve':
-            return PostDetailSerializer
-        return PostListSerializer
-    
+    pagination_class = PostPagination
+
     def get_queryset(self):
         queryset = super().get_queryset()
-        
         # 如果是前台接口，只返回已发布的文章
-        if self.request.path.startswith('/blog/posts'):
+        if self.request.path.startswith('/api/blog'):
             queryset = queryset.filter(status='published')
-            
-        # 搜索关键词过滤
-        keyword = self.request.query_params.get('keyword', None)
-        if keyword:
-            queryset = queryset.filter(
-                Q(title__icontains=keyword) | 
-                Q(content__icontains=keyword) |
-                Q(summary__icontains=keyword)
-            )
-            
         return queryset
-    
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        # 增加浏览量
-        Post.objects.filter(pk=instance.pk).update(views=F('views') + 1)
-        # 重新获取更新后的实例
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response({
-            'code': 200,
-            'message': 'success',
-            'data': serializer.data
-        })
-    
+
     def create(self, request, *args, **kwargs):
         try:
-            tag_ids = request.data.pop('tagIds', [])
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            post = serializer.save(author=self.request.user)
-            if tag_ids:
-                tags = Tag.objects.filter(id__in=tag_ids)
-                post.tags.set(tags)
+            self.perform_create(serializer)
             return Response({
                 'code': 200,
                 'message': '创建文章成功',
-                'data': {'id': serializer.instance.id}
+                'data': serializer.data
             })
         except Exception as e:
             return Response({
                 'code': 500,
                 'message': f'创建文章失败: {str(e)}'
-            })
-    
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     def update(self, request, *args, **kwargs):
         try:
             partial = kwargs.pop('partial', False)
             instance = self.get_object()
-            tag_ids = request.data.pop('tags', [])
             serializer = self.get_serializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
-            post = serializer.save()
-            if tag_ids:
-                tags = Tag.objects.filter(id__in=tag_ids)
-                post.tags.set(tags)
+            self.perform_update(serializer)
             return Response({
                 'code': 200,
-                'message': '更新文章成功'
+                'message': '更新文章成功',
+                'data': serializer.data
             })
         except Exception as e:
             return Response({
                 'code': 500,
                 'message': f'更新文章失败: {str(e)}'
-            })
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def destroy(self, request, *args, **kwargs):
+        # 如果是前台API，禁止删除操作
+        if request.path.startswith('/api/blog'):
+            return Response({
+                'code': 403,
+                'message': '前台API不支持删除操作'
+            }, status=status.HTTP_403_FORBIDDEN)
+            
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response({
@@ -207,7 +179,7 @@ class CategoryPostsView(APIView):
             posts = Post.objects.filter(category=category).order_by('-create_time')
             paginator = self.pagination_class()
             result = paginator.paginate_queryset(posts, request)
-            serializer = PostListSerializer(result, many=True)
+            serializer = PostSerializer(result, many=True)
             return paginator.get_paginated_response(serializer.data)
         except Category.DoesNotExist:
             return Response({'code': 404, 'message': '分类不存在'}, status=status.HTTP_404_NOT_FOUND)
@@ -223,7 +195,7 @@ class TagPostsView(APIView):
             posts = Post.objects.filter(tags=tag).order_by('-create_time')
             paginator = self.pagination_class()
             result = paginator.paginate_queryset(posts, request)
-            serializer = PostListSerializer(result, many=True)
+            serializer = PostSerializer(result, many=True)
             return paginator.get_paginated_response(serializer.data)
         except Tag.DoesNotExist:
             return Response({'code': 404, 'message': '标签不存在'}, status=status.HTTP_404_NOT_FOUND)
