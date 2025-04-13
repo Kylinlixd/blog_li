@@ -99,36 +99,7 @@ python manage.py runserver
 
 ### 示例接口
 
-#### 1. 用户登录
-- **接口**: `/api/auth/login` *(待实现或移除)*
-- **方法**: POST
-- **请求参数**:
-```json
-{
-  "username": "string",
-  "password": "string"
-}
-```
-- **响应数据**:
-```json
-{
-  "code": 200,
-  "data": {
-    "token": "string",
-    "userInfo": {
-      "id": "number",
-      "username": "string",
-      "nickname": "string",
-      "avatar": "string"
-    }
-  },
-  "message": "登录成功"
-}
-```
-
----
-
-#### 2. 获取文章列表
+#### 1. 获取文章列表
 - **接口**: `/api/posts`
 - **方法**: GET
 - **请求参数**:
@@ -168,7 +139,7 @@ python manage.py runserver
 
 ---
 
-#### 3. 分类文章列表
+#### 2. 分类文章列表
 - **接口**: `/api/category/{categoryId}/posts`
 - **方法**: GET
 - **请求参数**:
@@ -196,7 +167,7 @@ python manage.py runserver
 
 ---
 
-#### 4. 标签文章列表
+#### 3. 标签文章列表
 - **接口**: `/api/tag/{tagId}/posts`
 - **方法**: GET
 - **请求参数**:
@@ -224,7 +195,7 @@ python manage.py runserver
 
 ---
 
-#### 5. 热门文章
+#### 4. 热门文章
 - **接口**: `/api/posts/hot`
 - **方法**: GET
 - **请求参数**:
@@ -246,7 +217,7 @@ python manage.py runserver
 
 ---
 
-#### 6. 最近文章
+#### 5. 最近文章
 - **接口**: `/api/posts/recent`
 - **方法**: GET
 - **请求参数**:
@@ -265,8 +236,6 @@ python manage.py runserver
   "message": "success"
 }
 ```
-
-更多接口请参考完整 API 文档。
 
 ---
 
