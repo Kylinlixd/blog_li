@@ -1,6 +1,8 @@
 # 博客系统后端
 
-本项目是基于Django和Django REST framework开发的博客系统后端。
+本项目是基于 **Django** 和 **Django REST Framework** 开发的博客系统后端，支持用户认证、文章管理、分类管理、标签管理、评论管理以及仪表盘统计功能。
+
+---
 
 ## 环境要求
 
@@ -9,636 +11,311 @@
 - Django REST Framework
 - MySQL
 
+---
+
+## 功能模块
+
+### 1. 用户管理
+- 用户注册、登录、获取用户信息、修改密码、更新个人资料。
+- 使用 JWT 进行用户认证。
+
+### 2. 文章管理
+- 支持文章的增删改查。
+- 支持分页、搜索、分类筛选、标签筛选。
+- 提供热门文章、最新文章、相邻文章的获取接口。
+
+### 3. 分类管理
+- 支持分类的增删改查。
+- 获取分类下的文章列表。
+
+### 4. 标签管理
+- 支持标签的增删改查。
+- 获取标签下的文章列表。
+
+### 5. 评论管理
+- 支持评论的增删改查。
+- 支持评论的审核（批准/拒绝）。
+
+### 6. 文件上传
+- 支持头像上传，验证文件大小和格式。
+
+### 7. 仪表盘统计
+- 提供博客统计数据，包括文章总数、分类总数、标签总数和总浏览量。
+
+---
+
 ## 安装与运行
 
-1. 克隆代码仓库
-```
+### 1. 克隆代码仓库
+```bash
 git clone <仓库地址>
+cd blog_li
 ```
 
-2. 安装依赖
-```
+### 2. 安装依赖
+```bash
 pip install -r requirements.txt
 ```
 
-3. 配置数据库
-在 `blog/settings.py` 中配置数据库连接信息。
-
-4. 执行数据库迁移
+### 3. 配置数据库
+在 `blog/settings.py` 中配置数据库连接信息：
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'blog',
+        'USER': 'root',
+        'PASSWORD': 'your_password',
+        'HOST': '127.0.0.1',
+        'PORT': '3306',
+    }
+}
 ```
+
+### 4. 执行数据库迁移
+```bash
 python manage.py migrate
 ```
 
-5. 启动服务
-```
+### 5. 启动开发服务器
+```bash
 python manage.py runserver
 ```
+
+### 6. 访问项目
+打开浏览器访问 `http://127.0.0.1:8000`。
+
+---
 
 ## API 文档
 
 ### 基础信息
-- 基础路径: `/api`
-- 请求方式: REST
-- 数据格式: JSON
-- 认证方式: Bearer Token
+- **基础路径**: `/api`
+- **请求方式**: REST
+- **数据格式**: JSON
+- **认证方式**: Bearer Token
 
-### 认证相关
+---
 
-#### 1. 用户注册
-- 接口: `/api/auth/register`
-- 方法: POST
-- 描述: 用户注册接口
-- 请求参数:
+### 示例接口
+
+#### 1. 用户登录
+- **接口**: `/api/auth/login` *(待实现或移除)*
+- **方法**: POST
+- **请求参数**:
 ```json
 {
-  "username": "string", // 用户名
-  "password": "string", // 密码
-  "nickname": "string"  // 昵称
+  "username": "string",
+  "password": "string"
 }
 ```
-- 响应数据:
+- **响应数据**:
 ```json
 {
   "code": 200,
   "data": {
-    "token": "string",      // JWT token
+    "token": "string",
     "userInfo": {
-      "id": "number",       // 用户ID
-      "username": "string", // 用户名
-      "nickname": "string", // 昵称
-      "avatar": "string"    // 头像URL
+      "id": "number",
+      "username": "string",
+      "nickname": "string",
+      "avatar": "string"
     }
   },
-  "message": "string"
+  "message": "登录成功"
 }
 ```
 
-#### 2. 用户登录
-- 接口: `/api/auth/login`
-- 方法: POST
-- 描述: 用户登录接口
-- 请求参数:
-```json
-{
-  "username": "string", // 用户名
-  "password": "string"  // 密码
-}
-```
-- 响应数据:
+---
+
+#### 2. 获取文章列表
+- **接口**: `/api/posts`
+- **方法**: GET
+- **请求参数**:
+  - `page`: 页码，默认值为 `1`
+  - `pageSize`: 每页数量，默认值为 `10`
+  - `keyword`: 搜索关键词（可选）
+  - `categoryId`: 分类 ID（可选）
+  - `tagId`: 标签 ID（可选）
+- **响应数据**:
 ```json
 {
   "code": 200,
   "data": {
-    "token": "string",      // JWT token
-    "userInfo": {
-      "id": "number",       // 用户ID
-      "username": "string", // 用户名
-      "nickname": "string", // 昵称
-      "avatar": "string"    // 头像URL
+    "total": "number",
+    "items": [
+      {
+        "id": "number",
+        "title": "string",
+        "summary": "string",
+        "categoryId": "number",
+        "categoryName": "string",
+        "tags": [
+          {
+            "id": "number",
+            "name": "string"
+          }
+        ],
+        "status": "string",
+        "createTime": "string",
+        "updateTime": "string"
+      }
+    ]
+  },
+  "message": "success"
+}
+```
+
+---
+
+#### 3. 分类文章列表
+- **接口**: `/api/category/{categoryId}/posts`
+- **方法**: GET
+- **请求参数**:
+  - `categoryId`: 分类 ID
+  - `page`: 页码，默认值为 `1`
+  - `pageSize`: 每页数量，默认值为 `10`
+- **响应数据**:
+```json
+{
+  "code": 200,
+  "data": {
+    "total": "number",
+    "items": [
+      {
+        "id": "number",
+        "title": "string",
+        "summary": "string",
+        "createTime": "string"
+      }
+    ]
+  },
+  "message": "success"
+}
+```
+
+---
+
+#### 4. 标签文章列表
+- **接口**: `/api/tag/{tagId}/posts`
+- **方法**: GET
+- **请求参数**:
+  - `tagId`: 标签 ID
+  - `page`: 页码，默认值为 `1`
+  - `pageSize`: 每页数量，默认值为 `10`
+- **响应数据**:
+```json
+{
+  "code": 200,
+  "data": {
+    "total": "number",
+    "items": [
+      {
+        "id": "number",
+        "title": "string",
+        "summary": "string",
+        "createTime": "string"
+      }
+    ]
+  },
+  "message": "success"
+}
+```
+
+---
+
+#### 5. 热门文章
+- **接口**: `/api/posts/hot`
+- **方法**: GET
+- **请求参数**:
+  - `limit`: 返回的文章数量，默认值为 `5`，最大值为 `20`
+- **响应数据**:
+```json
+{
+  "code": 200,
+  "data": [
+    {
+      "id": "number",
+      "title": "string",
+      "views": "number"
     }
-  },
-  "message": "string"
+  ],
+  "message": "success"
 }
 ```
 
-#### 3. 获取用户信息
-- 接口: `/api/auth/info`
-- 方法: GET
-- 描述: 获取当前登录用户信息
-- 请求头: `Authorization: Bearer {token}`
-- 响应数据:
+---
+
+#### 6. 最近文章
+- **接口**: `/api/posts/recent`
+- **方法**: GET
+- **请求参数**:
+  - `limit`: 返回的文章数量，默认值为 `5`，最大值为 `20`
+- **响应数据**:
 ```json
 {
   "code": 200,
-  "data": {
-    "id": "number",
-    "username": "string",
-    "nickname": "string",
-    "avatar": "string"
-  },
-  "message": "string"
-}
-```
-
-#### 4. 修改密码
-- 接口: `/api/auth/password`
-- 方法: PUT
-- 描述: 修改用户密码
-- 请求头: `Authorization: Bearer {token}`
-- 请求参数:
-```json
-{
-  "oldPassword": "string", // 旧密码
-  "newPassword": "string"  // 新密码
-}
-```
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "string"
-}
-```
-
-### 文章管理
-
-#### 1. 获取文章列表
-- 接口: `/api/posts`
-- 方法: GET
-- 描述: 获取文章列表，支持分页和筛选
-- 请求头: `Authorization: Bearer {token}`
-- 请求参数:
-  - `page`: number (页码，默认1)
-  - `pageSize`: number (每页数量，默认10)
-  - `keyword`: string (搜索关键词)
-  - `categoryId`: number (分类ID)
-  - `tagId`: number (标签ID)
-  - `status`: string (状态：draft/published)
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": {
-    "total": "number",
-    "items": [{
+  "data": [
+    {
       "id": "number",
       "title": "string",
-      "content": "string",
-      "summary": "string",
-      "categoryId": "number",
-      "categoryName": "string",
-      "tags": [{
-        "id": "number",
-        "name": "string"
-      }],
-      "status": "string",
-      "createTime": "string",
-      "updateTime": "string"
-    }]
-  },
-  "message": "string"
-}
-```
-
-#### 2. 获取文章详情
-- 接口: `/api/posts/{id}`
-- 方法: GET
-- 描述: 获取文章详情
-- 请求头: `Authorization: Bearer {token}`
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": {
-    "id": "number",
-    "title": "string",
-    "content": "string",
-    "summary": "string",
-    "categoryId": "number",
-    "categoryName": "string",
-    "tags": [{
-      "id": "number",
-      "name": "string"
-    }],
-    "status": "string",
-    "createTime": "string",
-    "updateTime": "string"
-  },
-  "message": "string"
-}
-```
-
-#### 3. 创建文章
-- 接口: `/api/posts`
-- 方法: POST
-- 描述: 创建新文章
-- 请求头: `Authorization: Bearer {token}`
-- 请求参数:
-```json
-{
-  "title": "string",      // 文章标题
-  "content": "string",    // 文章内容
-  "summary": "string",    // 文章摘要
-  "categoryId": "number", // 分类ID
-  "tagIds": ["number"],   // 标签ID列表
-  "status": "string"      // 状态：draft/published
-}
-```
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": {
-    "id": "number"
-  },
-  "message": "string"
-}
-```
-
-#### 4. 更新文章
-- 接口: `/api/posts/{id}`
-- 方法: PUT
-- 描述: 更新文章信息
-- 请求头: `Authorization: Bearer {token}`
-- 请求参数:
-```json
-{
-  "title": "string",
-  "content": "string",
-  "summary": "string",
-  "categoryId": "number",
-  "tagIds": ["number"],
-  "status": "string"
-}
-```
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "string"
-}
-```
-
-#### 5. 删除文章
-- 接口: `/api/posts/{id}`
-- 方法: DELETE
-- 描述: 删除文章
-- 请求头: `Authorization: Bearer {token}`
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "string"
-}
-```
-
-### 分类管理
-
-#### 1. 获取分类列表
-- 接口: `/api/categories`
-- 方法: GET
-- 描述: 获取分类列表
-- 请求头: `Authorization: Bearer {token}`
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": [{
-    "id": "number",
-    "name": "string",
-    "description": "string",
-    "createTime": "string",
-    "updateTime": "string"
-  }],
-  "message": "string"
-}
-```
-
-#### 2. 创建分类
-- 接口: `/api/categories`
-- 方法: POST
-- 描述: 创建新分类
-- 请求头: `Authorization: Bearer {token}`
-- 请求参数:
-```json
-{
-  "name": "string",        // 分类名称
-  "description": "string"  // 分类描述
-}
-```
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": {
-    "id": "number"
-  },
-  "message": "string"
-}
-```
-
-### 标签管理
-
-#### 1. 获取标签列表
-- 接口: `/api/tags`
-- 方法: GET
-- 描述: 获取标签列表
-- 请求头: `Authorization: Bearer {token}`
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": [{
-    "id": "number",
-    "name": "string",
-    "createTime": "string",
-    "updateTime": "string"
-  }],
-  "message": "string"
-}
-```
-
-#### 2. 创建标签
-- 接口: `/api/tags`
-- 方法: POST
-- 描述: 创建新标签
-- 请求头: `Authorization: Bearer {token}`
-- 请求参数:
-```json
-{
-  "name": "string"  // 标签名称
-}
-```
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": {
-    "id": "number"
-  },
-  "message": "string"
-}
-```
-
-### 仪表盘统计
-
-#### 1. 获取统计数据
-- 接口: `/api/stats`
-- 方法: GET
-- 描述: 获取博客统计数据，包括文章、分类、标签数量和总浏览量
-- 请求头: `Authorization: Bearer {token}`
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "获取统计数据成功",
-  "data": {
-    "postCount": 24,       // 文章总数
-    "categoryCount": 6,    // 分类总数
-    "tagCount": 18,        // 标签总数
-    "totalViews": 4328     // 总浏览量
-  }
-}
-```
-
-### 前台API接口
-
-前台API接口不需要认证，可直接访问。
-
-#### 1. 获取文章列表
-- 接口: `/blog/posts/`
-- 方法: GET
-- 描述: 获取已发布的文章列表，支持分页和搜索
-- 请求参数:
-  - `page`: number (页码，默认1)
-  - `pageSize`: number (每页数量，默认10)
-  - `keyword`: string (搜索关键词)
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "total": "number",
-    "items": [{
-      "id": "number",
-      "title": "string",
-      "summary": "string",
-      "categoryId": "number",
-      "categoryName": "string",
-      "viewCount": "number",
-      "tags": [{
-        "id": "number",
-        "name": "string"
-      }],
-      "createTime": "string",
-      "updateTime": "string"
-    }]
-  }
-}
-```
-
-#### 2. 获取文章详情
-- 接口: `/blog/posts/{id}/`
-- 方法: GET
-- 描述: 获取文章详情
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "id": "number",
-    "title": "string",
-    "content": "string",
-    "summary": "string",
-    "categoryId": "number",
-    "categoryName": "string",
-    "viewCount": "number",
-    "tags": [{
-      "id": "number",
-      "name": "string"
-    }],
-    "createTime": "string",
-    "updateTime": "string"
-  }
-}
-```
-
-#### 3. 获取相邻文章
-- 接口: `/blog/posts/{id}/adjacent/`
-- 方法: GET
-- 描述: 获取当前文章的上一篇和下一篇
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "prev": {
-      "id": "number",
-      "title": "string"
-    },
-    "next": {
-      "id": "number",
-      "title": "string"
+      "createTime": "string"
     }
-  }
+  ],
+  "message": "success"
 }
 ```
 
-#### 4. 增加文章浏览量
-- 接口: `/blog/posts/{id}/view/`
-- 方法: POST
-- 描述: 增加文章浏览量
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": null
-}
+更多接口请参考完整 API 文档。
+
+---
+
+## 测试
+
+### 运行测试
+```bash
+python manage.py test
 ```
 
-#### 5. 获取最新文章
-- 接口: `/blog/posts/recent`
-- 方法: GET
-- 描述: 获取最新发布的文章列表
-- 请求参数:
-  - `limit`: number (返回数量，默认5，最大20)
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": [{
-    "id": "number",
-    "title": "string",
-    "createTime": "string"
-  }]
-}
+---
+
+## 部署建议
+
+1. **使用 WSGI 服务**: 推荐使用 `gunicorn` 或 `uwsgi` 部署。
+2. **静态文件服务**: 配置 Nginx 或其他 Web 服务器提供静态文件服务。
+3. **环境变量管理**: 使用 `.env` 文件管理敏感信息（如 `SECRET_KEY`、数据库密码）。
+4. **启用 HTTPS**: 配置 SSL 证书，确保数据传输安全。
+
+---
+
+## 项目结构
+
+```
+blog_li/
+├── apps/                   # 自定义应用
+│   ├── category/           # 分类管理模块
+│   ├── comment/            # 评论管理模块
+│   ├── dashboard/          # 仪表盘统计模块
+│   ├── post/               # 文章管理模块
+│   ├── tag/                # 标签管理模块
+│   ├── upload/             # 文件上传模块
+│   └── user/               # 用户管理模块
+├── blog/                   # 项目配置
+├── templates/              # HTML 模板
+├── static/                 # 静态文件
+├── manage.py               # Django 管理脚本
+├── requirements.txt        # 项目依赖
+└── README.md               # 项目说明
 ```
 
-#### 6. 获取热门文章
-- 接口: `/blog/posts/hot`
-- 方法: GET
-- 描述: 获取浏览量最高的文章列表
-- 请求参数:
-  - `limit`: number (返回数量，默认5，最大20)
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": [{
-    "id": "number",
-    "title": "string",
-    "viewCount": "number",
-    "createTime": "string"
-  }]
-}
-```
+---
 
-#### 7. 获取分类下的文章
-- 接口: `/blog/categories/{categoryId}/posts`
-- 方法: GET
-- 描述: 获取指定分类下的文章列表
-- 请求参数:
-  - `page`: number (页码，默认1)
-  - `pageSize`: number (每页数量，默认10)
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "total": "number",
-    "items": [{
-      "id": "number",
-      "title": "string",
-      "summary": "string",
-      "categoryId": "number",
-      "categoryName": "string",
-      "viewCount": "number",
-      "tags": [{
-        "id": "number",
-        "name": "string"
-      }],
-      "createTime": "string",
-      "updateTime": "string"
-    }]
-  }
-}
-```
+## 贡献
 
-#### 8. 获取标签下的文章
-- 接口: `/blog/tags/{tagId}/posts`
-- 方法: GET
-- 描述: 获取指定标签下的文章列表
-- 请求参数:
-  - `page`: number (页码，默认1)
-  - `pageSize`: number (每页数量，默认10)
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "total": "number",
-    "items": [{
-      "id": "number",
-      "title": "string",
-      "summary": "string",
-      "categoryId": "number",
-      "categoryName": "string",
-      "viewCount": "number",
-      "tags": [{
-        "id": "number",
-        "name": "string"
-      }],
-      "createTime": "string",
-      "updateTime": "string"
-    }]
-  }
-}
-```
+欢迎提交 Issue 或 Pull Request 来改进本项目。
 
-#### 9. 获取统计信息
-- 接口: `/blog/stats`
-- 方法: GET
-- 描述: 获取博客统计信息（文章总数、分类总数、标签总数等）
-- 响应数据:
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "postCount": "number",
-    "categoryCount": "number",
-    "tagCount": "number",
-    "commentCount": "number",
-    "viewCount": "number"
-  }
-}
-```
+---
 
-#### 10. 获取分类列表
-- 接口: `/api/categories`
-- 方法: GET
-- 描述: 获取所有分类列表
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": [{
-    "id": "number",
-    "name": "string",
-    "description": "string",
-    "postCount": "number"
-  }],
-  "message": "获取分类列表成功"
-}
-```
+## 许可证
 
-#### 11. 获取标签列表
-- 接口: `/api/tags`
-- 方法: GET
-- 描述: 获取所有标签列表
-- 响应数据:
-```json
-{
-  "code": 200,
-  "data": [{
-    "id": "number",
-    "name": "string"
-  }],
-  "message": "获取标签列表成功"
-}
-```
-
-#### 12. 评论相关接口
-- 获取评论列表: `/api/comments` (GET)
-- 提交评论: `/api/comments` (POST)
-- 响应数据格式与后台API一致
-
-> 注意：前台接口不需要认证，所有用户都可以访问。 
+本项目基于 MIT 许可证开源。
