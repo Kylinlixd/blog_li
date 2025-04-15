@@ -2,39 +2,59 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Sum
-
-from apps.post.models import Post
+from django.db.models import Count
+from django.utils import timezone
+from datetime import timedelta
+from apps.dynamic.models import Dynamic
 from apps.category.models import Category
 from apps.tag.models import Tag
+from apps.comment.models import Comment
 
 # Create your views here.
 class StatsView(APIView):
     """
     获取博客统计数据API
     """
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        # 获取文章总数
-        post_count = Post.objects.count()
+        # 获取总数统计
+        total_dynamics = Dynamic.objects.count()
+        total_categories = Category.objects.count()
+        total_tags = Tag.objects.count()
+        total_comments = Comment.objects.count()
         
-        # 获取分类总数
-        category_count = Category.objects.count()
+        # 获取最近7天的动态统计
+        now = timezone.now()
+        seven_days_ago = now - timedelta(days=7)
+        daily_dynamics = Dynamic.objects.filter(
+            create_time__gte=seven_days_ago
+        ).extra(
+            select={'day': 'date(create_time)'}
+        ).values('day').annotate(count=Count('id')).order_by('day')
         
-        # 获取标签总数
-        tag_count = Tag.objects.count()
+        # 获取分类统计
+        category_stats = Category.objects.annotate(
+            dynamic_count=Count('dynamic')
+        ).values('name', 'dynamic_count')
         
-        # 获取总浏览量
-        total_views = Post.objects.aggregate(total_views=Sum('views'))['total_views'] or 0
+        # 获取标签统计
+        tag_stats = Tag.objects.annotate(
+            dynamic_count=Count('dynamic')
+        ).values('name', 'dynamic_count')
         
         return Response({
             'code': 200,
-            'message': '获取统计数据成功',
+            'message': 'success',
             'data': {
-                'postCount': post_count,
-                'categoryCount': category_count,
-                'tagCount': tag_count,
-                'totalViews': total_views
+                'total': {
+                    'dynamics': total_dynamics,
+                    'categories': total_categories,
+                    'tags': total_tags,
+                    'comments': total_comments
+                },
+                'daily': list(daily_dynamics),
+                'categories': list(category_stats),
+                'tags': list(tag_stats)
             }
         })

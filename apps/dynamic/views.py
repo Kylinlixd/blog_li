@@ -1,9 +1,9 @@
-from apps.post.models import Post 
+from apps.dynamic.models import Dynamic
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
-from apps.post.serializers import (
-    PostSerializer, AdjacentPostSerializer,
-    HotPostSerializer, RecentPostSerializer
+from apps.dynamic.serializers import (
+    DynamicSerializer, AdjacentDynamicSerializer,
+    HotDynamicSerializer, RecentDynamicSerializer
 )
 from django.db.models import Q, F
 from rest_framework.response import Response
@@ -16,7 +16,7 @@ from apps.category.models import Category
 from apps.tag.models import Tag
 
 
-class PostPagination(PageNumberPagination):
+class DynamicPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'pageSize'
     max_page_size = 100
@@ -33,15 +33,15 @@ class PostPagination(PageNumberPagination):
         })
 
 
-class PostViewSet(ModelViewSet):
-    queryset = Post.objects.all()
-    serializer_class = PostSerializer
+class DynamicViewSet(ModelViewSet):
+    queryset = Dynamic.objects.all()
+    serializer_class = DynamicSerializer
     permission_classes = [AllowAny]
-    pagination_class = PostPagination
+    pagination_class = DynamicPagination
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # 如果是前台接口，只返回已发布的文章
+        # 如果是前台接口，只返回已发布的动态
         if self.request.path.startswith('/api/blog'):
             queryset = queryset.filter(status='published')
         return queryset
@@ -53,13 +53,13 @@ class PostViewSet(ModelViewSet):
             self.perform_create(serializer)
             return Response({
                 'code': 200,
-                'message': '创建文章成功',
+                'message': '创建动态成功',
                 'data': serializer.data
             })
         except Exception as e:
             return Response({
                 'code': 500,
-                'message': f'创建文章失败: {str(e)}'
+                'message': f'创建动态失败: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, *args, **kwargs):
@@ -71,13 +71,13 @@ class PostViewSet(ModelViewSet):
             self.perform_update(serializer)
             return Response({
                 'code': 200,
-                'message': '更新文章成功',
+                'message': '更新动态成功',
                 'data': serializer.data
             })
         except Exception as e:
             return Response({
                 'code': 500,
-                'message': f'更新文章失败: {str(e)}'
+                'message': f'更新动态失败: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def destroy(self, request, *args, **kwargs):
@@ -92,25 +92,25 @@ class PostViewSet(ModelViewSet):
         self.perform_destroy(instance)
         return Response({
             'code': 200,
-            'message': '删除文章成功'
+            'message': '删除动态成功'
         })
     
     @action(detail=True, methods=['get'])
     def adjacent(self, request, pk=None):
-        post = self.get_object()
-        prev_post = Post.objects.filter(
+        dynamic = self.get_object()
+        prev_dynamic = Dynamic.objects.filter(
             status='published',
-            create_time__lt=post.create_time
+            create_time__lt=dynamic.create_time
         ).order_by('-create_time').first()
         
-        next_post = Post.objects.filter(
+        next_dynamic = Dynamic.objects.filter(
             status='published',
-            create_time__gt=post.create_time
+            create_time__gt=dynamic.create_time
         ).order_by('create_time').first()
         
-        serializer = AdjacentPostSerializer({
-            'prev': prev_post,
-            'next': next_post
+        serializer = AdjacentDynamicSerializer({
+            'prev': prev_dynamic,
+            'next': next_dynamic
         })
         
         return Response({
@@ -121,9 +121,9 @@ class PostViewSet(ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def view(self, request, pk=None):
-        post = self.get_object()
-        post.views = F('views') + 1
-        post.save()
+        dynamic = self.get_object()
+        dynamic.views = F('views') + 1
+        dynamic.save()
         return Response({
             'code': 200,
             'message': 'success',
@@ -131,7 +131,7 @@ class PostViewSet(ModelViewSet):
         })
 
 
-class RecentPostsView(APIView):
+class RecentDynamicsView(APIView):
     permission_classes = [AllowAny]
     
     def get(self, request):
@@ -140,10 +140,10 @@ class RecentPostsView(APIView):
         if limit > 20:  # 限制最大数量
             limit = 20
             
-        # 获取最近的文章
-        recent_posts = Post.objects.filter(status='published').order_by('-create_time')[:limit]
+        # 获取最近的动态
+        recent_dynamics = Dynamic.objects.filter(status='published').order_by('-create_time')[:limit]
         
-        serializer = RecentPostSerializer(recent_posts, many=True)
+        serializer = RecentDynamicSerializer(recent_dynamics, many=True)
         return Response({
             'code': 200,
             'message': 'success',
@@ -151,7 +151,7 @@ class RecentPostsView(APIView):
         })
 
 
-class HotPostsView(APIView):
+class HotDynamicsView(APIView):
     permission_classes = [AllowAny]
     
     def get(self, request):
@@ -159,8 +159,8 @@ class HotPostsView(APIView):
         if limit > 20:
             limit = 20
             
-        hot_posts = Post.objects.filter(status='published').order_by('-views')[:limit]
-        serializer = HotPostSerializer(hot_posts, many=True)
+        hot_dynamics = Dynamic.objects.filter(status='published').order_by('-views')[:limit]
+        serializer = HotDynamicSerializer(hot_dynamics, many=True)
         
         return Response({
             'code': 200,
@@ -169,33 +169,33 @@ class HotPostsView(APIView):
         })
 
 
-class CategoryPostsView(APIView):
+class CategoryDynamicsView(APIView):
     permission_classes = [AllowAny]
-    pagination_class = PostPagination
+    pagination_class = DynamicPagination
     
     def get(self, request, categoryId):
         try:
             category = Category.objects.get(pk=categoryId)
-            posts = Post.objects.filter(category=category).order_by('-create_time')
+            dynamics = Dynamic.objects.filter(category=category).order_by('-create_time')
             paginator = self.pagination_class()
-            result = paginator.paginate_queryset(posts, request)
-            serializer = PostSerializer(result, many=True)
+            result = paginator.paginate_queryset(dynamics, request)
+            serializer = DynamicSerializer(result, many=True)
             return paginator.get_paginated_response(serializer.data)
         except Category.DoesNotExist:
             return Response({'code': 404, 'message': '分类不存在'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class TagPostsView(APIView):
+class TagDynamicsView(APIView):
     permission_classes = [AllowAny]
-    pagination_class = PostPagination
+    pagination_class = DynamicPagination
     
     def get(self, request, tagId):
         try:
             tag = Tag.objects.get(pk=tagId)
-            posts = Post.objects.filter(tags=tag).order_by('-create_time')
+            dynamics = Dynamic.objects.filter(tags=tag).order_by('-create_time')
             paginator = self.pagination_class()
-            result = paginator.paginate_queryset(posts, request)
-            serializer = PostSerializer(result, many=True)
+            result = paginator.paginate_queryset(dynamics, request)
+            serializer = DynamicSerializer(result, many=True)
             return paginator.get_paginated_response(serializer.data)
         except Tag.DoesNotExist:
             return Response({'code': 404, 'message': '标签不存在'}, status=status.HTTP_404_NOT_FOUND)

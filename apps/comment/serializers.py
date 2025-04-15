@@ -1,14 +1,15 @@
 from rest_framework import serializers
 from .models import Comment
-from apps.post.models import Post
+from apps.dynamic.models import Dynamic
+from apps.user.serializers import UserSerializer
 
 class CommentSerializer(serializers.ModelSerializer):
-    postTitle = serializers.CharField(source='post.title', read_only=True)
-    postId = serializers.PrimaryKeyRelatedField(queryset=Post.objects.all(), source='post')
+    user = UserSerializer(read_only=True)
+    dynamic = serializers.PrimaryKeyRelatedField(queryset=Dynamic.objects.all())
     createdAt = serializers.DateTimeField(source='create_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
     updatedAt = serializers.DateTimeField(source='update_time', format="%Y-%m-%d %H:%M:%S", read_only=True)
     
     class Meta:
         model = Comment
-        fields = ['id', 'content', 'postId', 'postTitle', 'author', 'email', 'status', 'createdAt', 'updatedAt']
-        read_only_fields = ['createdAt', 'updatedAt'] 
+        fields = ['id', 'content', 'user', 'dynamic', 'create_time', 'updatedAt']
+        read_only_fields = ['user', 'create_time', 'updatedAt'] 

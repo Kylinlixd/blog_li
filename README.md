@@ -1,6 +1,6 @@
 # 博客系统后端
 
-本项目是基于 **Django** 和 **Django REST Framework** 开发的博客系统后端，支持用户认证、文章管理、分类管理、标签管理、评论管理以及仪表盘统计功能。
+本项目是基于 **Django** 和 **Django REST Framework** 开发的博客系统后端，支持用户认证、动态管理、分类管理、标签管理、评论管理以及仪表盘统计功能。
 
 ---
 
@@ -19,18 +19,18 @@
 - 用户注册、登录、获取用户信息、修改密码、更新个人资料。
 - 使用 JWT 进行用户认证。
 
-### 2. 文章管理
-- 支持文章的增删改查。
+### 2. 动态管理
+- 支持动态的增删改查。
 - 支持分页、搜索、分类筛选、标签筛选。
-- 提供热门文章、最新文章、相邻文章的获取接口。
+- 提供热门动态、最新动态、相邻动态的获取接口。
 
 ### 3. 分类管理
 - 支持分类的增删改查。
-- 获取分类下的文章列表。
+- 获取分类下的动态列表。
 
 ### 4. 标签管理
 - 支持标签的增删改查。
-- 获取标签下的文章列表。
+- 获取标签下的动态列表。
 
 ### 5. 评论管理
 - 支持评论的增删改查。
@@ -40,7 +40,9 @@
 - 支持头像上传，验证文件大小和格式。
 
 ### 7. 仪表盘统计
-- 提供博客统计数据，包括文章总数、分类总数、标签总数和总浏览量。
+- 提供博客统计数据，包括动态总数、分类总数、标签总数和评论总数。
+- 提供最近 7 天动态发布趋势。
+- 提供分类和标签的动态数量统计。
 
 ---
 
@@ -99,15 +101,12 @@ python manage.py runserver
 
 ### 示例接口
 
-#### 1. 获取文章列表
-- **接口**: `/api/posts`
+#### 1. 获取动态列表
+- **接口**: `/api/dynamics`
 - **方法**: GET
 - **请求参数**:
   - `page`: 页码，默认值为 `1`
   - `pageSize`: 每页数量，默认值为 `10`
-  - `keyword`: 搜索关键词（可选）
-  - `categoryId`: 分类 ID（可选）
-  - `tagId`: 标签 ID（可选）
 - **响应数据**:
 ```json
 {
@@ -118,9 +117,17 @@ python manage.py runserver
       {
         "id": "number",
         "title": "string",
-        "summary": "string",
-        "categoryId": "number",
-        "categoryName": "string",
+        "content": "string",
+        "author": {
+          "id": "number",
+          "username": "string",
+          "nickname": "string",
+          "avatar": "string"
+        },
+        "category": {
+          "id": "number",
+          "name": "string"
+        },
         "tags": [
           {
             "id": "number",
@@ -128,8 +135,9 @@ python manage.py runserver
           }
         ],
         "status": "string",
-        "createTime": "string",
-        "updateTime": "string"
+        "views": "number",
+        "create_time": "string",
+        "update_time": "string"
       }
     ]
   },
@@ -139,8 +147,8 @@ python manage.py runserver
 
 ---
 
-#### 2. 分类文章列表
-- **接口**: `/api/category/{categoryId}/posts`
+#### 2. 分类动态列表
+- **接口**: `/api/blog/categories/{categoryId}/dynamics`
 - **方法**: GET
 - **请求参数**:
   - `categoryId`: 分类 ID
@@ -156,8 +164,14 @@ python manage.py runserver
       {
         "id": "number",
         "title": "string",
-        "summary": "string",
-        "createTime": "string"
+        "content": "string",
+        "author": "object",
+        "category": "object",
+        "tags": "array",
+        "status": "string",
+        "views": "number",
+        "create_time": "string",
+        "update_time": "string"
       }
     ]
   },
@@ -167,8 +181,8 @@ python manage.py runserver
 
 ---
 
-#### 3. 标签文章列表
-- **接口**: `/api/tag/{tagId}/posts`
+#### 3. 标签动态列表
+- **接口**: `/api/blog/tags/{tagId}/dynamics`
 - **方法**: GET
 - **请求参数**:
   - `tagId`: 标签 ID
@@ -184,8 +198,14 @@ python manage.py runserver
       {
         "id": "number",
         "title": "string",
-        "summary": "string",
-        "createTime": "string"
+        "content": "string",
+        "author": "object",
+        "category": "object",
+        "tags": "array",
+        "status": "string",
+        "views": "number",
+        "create_time": "string",
+        "update_time": "string"
       }
     ]
   },
@@ -195,11 +215,11 @@ python manage.py runserver
 
 ---
 
-#### 4. 热门文章
-- **接口**: `/api/posts/hot`
+#### 4. 热门动态
+- **接口**: `/blog/dynamics/hot`
 - **方法**: GET
 - **请求参数**:
-  - `limit`: 返回的文章数量，默认值为 `5`，最大值为 `20`
+  - `limit`: 返回的动态数量，默认值为 `5`，最大值为 `20`
 - **响应数据**:
 ```json
 {
@@ -208,7 +228,8 @@ python manage.py runserver
     {
       "id": "number",
       "title": "string",
-      "views": "number"
+      "views": "number",
+      "create_time": "string"
     }
   ],
   "message": "success"
@@ -217,11 +238,11 @@ python manage.py runserver
 
 ---
 
-#### 5. 最近文章
-- **接口**: `/api/posts/recent`
+#### 5. 最近动态
+- **接口**: `/blog/dynamics/recent`
 - **方法**: GET
 - **请求参数**:
-  - `limit`: 返回的文章数量，默认值为 `5`，最大值为 `20`
+  - `limit`: 返回的动态数量，默认值为 `5`，最大值为 `20`
 - **响应数据**:
 ```json
 {
@@ -230,10 +251,80 @@ python manage.py runserver
     {
       "id": "number",
       "title": "string",
-      "createTime": "string"
+      "create_time": "string"
     }
   ],
   "message": "success"
+}
+```
+
+#### 6. 相邻动态
+- **接口**: `/blog/dynamics/{id}/adjacent`
+- **方法**: GET
+- **响应数据**:
+```json
+{
+  "code": 200,
+  "data": {
+    "prev": {
+      "id": "number",
+      "title": "string"
+    },
+    "next": {
+      "id": "number",
+      "title": "string"
+    }
+  },
+  "message": "success"
+}
+```
+
+#### 7. 增加浏览量
+- **接口**: `/blog/dynamics/{id}/view`
+- **方法**: POST
+- **响应数据**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": null
+}
+```
+
+#### 8. 统计数据
+- **接口**: `/api/stats`
+- **方法**: GET
+- **响应数据**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "total": {
+      "dynamics": "number",
+      "categories": "number",
+      "tags": "number",
+      "comments": "number"
+    },
+    "daily": [
+      {
+        "day": "string",
+        "count": "number"
+      }
+    ],
+    "categories": [
+      {
+        "name": "string",
+        "dynamic_count": "number"
+      }
+    ],
+    "tags": [
+      {
+        "name": "string",
+        "dynamic_count": "number"
+      }
+    ]
+  }
 }
 ```
 

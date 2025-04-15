@@ -21,7 +21,7 @@ from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 
 from apps.user.views import *
-from apps.post.views import *
+from apps.dynamic.views import *
 from apps.category.views import *
 from apps.tag.views import *
 from apps.dashboard.views import StatsView
@@ -30,7 +30,7 @@ from apps.upload.views import AvatarUploadView
 
 # 创建路由器
 router = DefaultRouter()
-router.register(r'blog/posts', PostViewSet, basename='post')
+router.register(r'blog/dynamics', DynamicViewSet, basename='dynamic')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -44,24 +44,24 @@ urlpatterns = [
     
     # 博客前台API
     path('', include(router.urls)),
-    path('blog/posts/hot', HotPostsView.as_view()),
-    path('blog/posts/recent', RecentPostsView.as_view()),
-    path('api/blog/categories/<int:categoryId>/posts', CategoryPostsView.as_view()),
-    path('api/blog/tags/<int:tagId>/posts', TagPostsView.as_view()),
+    path('blog/dynamics/hot', HotDynamicsView.as_view()),
+    path('blog/dynamics/recent', RecentDynamicsView.as_view()),
+    path('api/blog/categories/<int:categoryId>/dynamics', CategoryDynamicsView.as_view()),
+    path('api/blog/tags/<int:tagId>/dynamics', TagDynamicsView.as_view()),
     path('api/stats', StatsView.as_view()),
     
     # 后台管理API
-    path('api/posts', PostViewSet.as_view({
+    path('api/dynamics', DynamicViewSet.as_view({
         'get': 'list',
         'post': 'create'
     })),
-    path('api/posts/<int:pk>', PostViewSet.as_view({
+    path('api/dynamics/<int:pk>', DynamicViewSet.as_view({
         'get': 'retrieve',
         'put': 'update',
         'delete': 'destroy'
     })),
-    path('api/posts/<int:pk>/adjacent', PostViewSet.as_view({'get': 'adjacent'})),
-    path('api/posts/<int:pk>/view', PostViewSet.as_view({'post': 'view'})),
+    path('api/dynamics/<int:pk>/adjacent', DynamicViewSet.as_view({'get': 'adjacent'})),
+    path('api/dynamics/<int:pk>/view', DynamicViewSet.as_view({'post': 'view'})),
     
     # 其他API
     path('api/categories', CategoryViewSet.as_view({

@@ -50,14 +50,14 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',
     
-    # 自定义应用
-    'apps.user.apps.UserConfig',
-    'apps.post.apps.PostConfig',
-    'apps.category.apps.CategoryConfig',
-    'apps.tag.apps.TagConfig',
-    'apps.dashboard.apps.DashboardConfig',
-    'apps.comment.apps.CommentConfig',
-    'apps.upload.apps.UploadConfig',
+    #本地应用
+    'apps.user',
+    'apps.dynamic',
+    'apps.category',
+    'apps.tag',
+    'apps.comment',
+    'apps.upload',
+    'apps.dashboard',
 ]
 
 MIDDLEWARE = [
