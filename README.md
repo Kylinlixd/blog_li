@@ -92,7 +92,7 @@ python manage.py runserver
 ## API 文档
 
 ### 基础信息
-- **基础路径**: `/api`
+- **基础路径**: `/api` 和 `/blog`
 - **请求方式**: REST
 - **数据格式**: JSON
 - **认证方式**: Bearer Token
@@ -102,42 +102,40 @@ python manage.py runserver
 ### 示例接口
 
 #### 1. 获取动态列表
-- **接口**: `/api/dynamics`
+- **接口**: `/blog/dynamics`
 - **方法**: GET
 - **请求参数**:
   - `page`: 页码，默认值为 `1`
   - `pageSize`: 每页数量，默认值为 `10`
+  - `type`: 可选，动态类型：text/image/audio/video
 - **响应数据**:
 ```json
 {
   "code": 200,
   "data": {
     "total": "number",
-    "items": [
+    "list": [
       {
-        "id": "number",
-        "title": "string",
+        "id": "string",
         "content": "string",
-        "author": {
-          "id": "number",
-          "username": "string",
-          "nickname": "string",
-          "avatar": "string"
-        },
-        "category": {
-          "id": "number",
-          "name": "string"
-        },
-        "tags": [
+        "type": "string",
+        "createdAt": "string",
+        "images": [
           {
-            "id": "number",
-            "name": "string"
+            "url": "string",
+            "width": "number",
+            "height": "number"
           }
         ],
-        "status": "string",
-        "views": "number",
-        "create_time": "string",
-        "update_time": "string"
+        "audio": {
+          "url": "string",
+          "duration": "number"
+        },
+        "video": {
+          "url": "string",
+          "cover": "string",
+          "duration": "number"
+        }
       }
     ]
   },
@@ -147,8 +145,45 @@ python manage.py runserver
 
 ---
 
-#### 2. 分类动态列表
-- **接口**: `/api/blog/categories/{categoryId}/dynamics`
+#### 2. 获取动态详情
+- **接口**: `/blog/dynamics/{id}`
+- **方法**: GET
+- **请求参数**:
+  - `id`: 动态ID，路径参数
+- **响应数据**:
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": "string",
+    "content": "string",
+    "type": "string",
+    "createdAt": "string",
+    "images": [
+      {
+        "url": "string",
+        "width": "number",
+        "height": "number"
+      }
+    ],
+    "audio": {
+      "url": "string",
+      "duration": "number"
+    },
+    "video": {
+      "url": "string",
+      "cover": "string",
+      "duration": "number"
+    }
+  }
+}
+```
+
+---
+
+#### 3. 分类动态列表
+- **接口**: `/blog/categories/{categoryId}/dynamics`
 - **方法**: GET
 - **请求参数**:
   - `categoryId`: 分类 ID
@@ -181,8 +216,8 @@ python manage.py runserver
 
 ---
 
-#### 3. 标签动态列表
-- **接口**: `/api/blog/tags/{tagId}/dynamics`
+#### 4. 标签动态列表
+- **接口**: `/blog/tags/{tagId}/dynamics`
 - **方法**: GET
 - **请求参数**:
   - `tagId`: 标签 ID
@@ -215,7 +250,7 @@ python manage.py runserver
 
 ---
 
-#### 4. 热门动态
+#### 5. 热门动态
 - **接口**: `/blog/dynamics/hot`
 - **方法**: GET
 - **请求参数**:
@@ -238,7 +273,7 @@ python manage.py runserver
 
 ---
 
-#### 5. 最近动态
+#### 6. 最近动态
 - **接口**: `/blog/dynamics/recent`
 - **方法**: GET
 - **请求参数**:
@@ -258,7 +293,7 @@ python manage.py runserver
 }
 ```
 
-#### 6. 相邻动态
+#### 7. 相邻动态
 - **接口**: `/blog/dynamics/{id}/adjacent`
 - **方法**: GET
 - **响应数据**:
@@ -279,7 +314,7 @@ python manage.py runserver
 }
 ```
 
-#### 7. 增加浏览量
+#### 8. 增加浏览量
 - **接口**: `/blog/dynamics/{id}/view`
 - **方法**: POST
 - **响应数据**:
@@ -291,8 +326,8 @@ python manage.py runserver
 }
 ```
 
-#### 8. 统计数据
-- **接口**: `/api/stats`
+#### 9. 统计数据
+- **接口**: `/blog/stats`
 - **方法**: GET
 - **响应数据**:
 ```json

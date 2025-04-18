@@ -3,7 +3,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from apps.dynamic.serializers import (
     DynamicSerializer, AdjacentDynamicSerializer,
-    HotDynamicSerializer, RecentDynamicSerializer
+    HotDynamicSerializer, RecentDynamicSerializer,
+    AdminDynamicSerializer
 )
 from django.db.models import Q, F
 from rest_framework.response import Response
@@ -28,61 +29,103 @@ class DynamicPagination(PageNumberPagination):
             'message': 'success',
             'data': {
                 'total': self.page.paginator.count,
-                'items': data
+                'list' if self.request.path.startswith('/blog') else 'items': data
             }
         })
 
 
 class DynamicViewSet(ModelViewSet):
     queryset = Dynamic.objects.all()
-    serializer_class = DynamicSerializer
-    permission_classes = [AllowAny]
     pagination_class = DynamicPagination
-
+    
+    def get_permissions(self):
+        if self.request.path.startswith('/blog'):
+            return [AllowAny()]
+        return [IsAuthenticated()]
+    
+    def get_serializer_class(self):
+        if self.request.path.startswith('/api'):
+            return AdminDynamicSerializer
+        return DynamicSerializer
+    
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # 如果是前台接口，只返回已发布的动态
-        if self.request.path.startswith('/api/blog'):
+        queryset = self.queryset
+        
+        # 前台API只能看到已发布的动态
+        if self.request.path.startswith('/blog'):
             queryset = queryset.filter(status='published')
+        
+        # 后台API可以根据状态筛选
+        elif 'status' in self.request.query_params:
+            status = self.request.query_params.get('status')
+            queryset = queryset.filter(status=status)
+        
+        # 根据类型筛选
+        if 'type' in self.request.query_params:
+            type_val = self.request.query_params.get('type')
+            queryset = queryset.filter(type=type_val)
+        
+        # 关键词搜索
+        if 'keyword' in self.request.query_params:
+            keyword = self.request.query_params.get('keyword')
+            queryset = queryset.filter(
+                Q(title__icontains=keyword) | 
+                Q(content__icontains=keyword)
+            )
+        
         return queryset
-
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'code': 200,
+            'message': 'success',
+            'data': {
+                'total': queryset.count(),
+                'list' if request.path.startswith('/blog') else 'items': serializer.data
+            }
+        })
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({
+            'code': 200,
+            'message': 'success',
+            'data': serializer.data
+        })
+    
     def create(self, request, *args, **kwargs):
-        try:
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
-            return Response({
-                'code': 200,
-                'message': '创建动态成功',
-                'data': serializer.data
-            })
-        except Exception as e:
-            return Response({
-                'code': 500,
-                'message': f'创建动态失败: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        return Response({
+            'code': 200,
+            'message': '创建动态成功',
+            'data': {'id': instance.id}
+        })
+    
     def update(self, request, *args, **kwargs):
-        try:
-            partial = kwargs.pop('partial', False)
-            instance = self.get_object()
-            serializer = self.get_serializer(instance, data=request.data, partial=partial)
-            serializer.is_valid(raise_exception=True)
-            self.perform_update(serializer)
-            return Response({
-                'code': 200,
-                'message': '更新动态成功',
-                'data': serializer.data
-            })
-        except Exception as e:
-            return Response({
-                'code': 500,
-                'message': f'更新动态失败: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({
+            'code': 200,
+            'message': '更新动态成功',
+            'data': None
+        })
     
     def destroy(self, request, *args, **kwargs):
         # 如果是前台API，禁止删除操作
-        if request.path.startswith('/api/blog'):
+        if request.path.startswith('/blog'):
             return Response({
                 'code': 403,
                 'message': '前台API不支持删除操作'
@@ -92,7 +135,8 @@ class DynamicViewSet(ModelViewSet):
         self.perform_destroy(instance)
         return Response({
             'code': 200,
-            'message': '删除动态成功'
+            'message': '删除动态成功',
+            'data': None
         })
     
     @action(detail=True, methods=['get'])

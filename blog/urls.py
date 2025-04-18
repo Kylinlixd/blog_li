@@ -30,7 +30,7 @@ from apps.upload.views import AvatarUploadView
 
 # 创建路由器
 router = DefaultRouter()
-router.register(r'api/blog/dynamics', DynamicViewSet, basename='dynamic')
+router.register(r'blog/dynamics', DynamicViewSet, basename='dynamic')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -44,11 +44,11 @@ urlpatterns = [
     
     # 博客前台API
     path('', include(router.urls)),
-    path('api/blog/dynamics/hot', HotDynamicsView.as_view()),
-    path('api/blog/dynamics/recent', RecentDynamicsView.as_view()),
-    path('api/blog/categories/<int:categoryId>/dynamics', CategoryDynamicsView.as_view()),
-    path('api/blog/tags/<int:tagId>/dynamics', TagDynamicsView.as_view()),
-    path('api/stats', StatsView.as_view()),
+    path('blog/dynamics/hot', HotDynamicsView.as_view()),
+    path('blog/dynamics/recent', RecentDynamicsView.as_view()),
+    path('blog/categories/<int:categoryId>/dynamics', CategoryDynamicsView.as_view()),
+    path('blog/tags/<int:tagId>/dynamics', TagDynamicsView.as_view()),
+    path('blog/stats', StatsView.as_view()),
     
     # 后台管理API
     path('api/dynamics', DynamicViewSet.as_view({
