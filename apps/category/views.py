@@ -3,10 +3,11 @@ from django.shortcuts import render
 # Create your views here.
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.mixins import ListModelMixin, CreateModelMixin
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Category
 from .serializers import CategorySerializer
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
@@ -54,4 +55,20 @@ class CategoryViewSet(ModelViewSet):
         return Response({
             'code': 200,
             'message': '删除分类成功'
+        })
+
+
+class BlogCategoriesView(APIView):
+    """
+    前台获取分类列表API
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        categories = Category.objects.all()
+        serializer = CategorySerializer(categories, many=True)
+        return Response({
+            'code': 200,
+            'message': 'success',
+            'data': serializer.data
         })

@@ -46,6 +46,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('blog/dynamics/hot', HotDynamicsView.as_view()),
     path('blog/dynamics/recent', RecentDynamicsView.as_view()),
+    path('blog/categories', BlogCategoriesView.as_view()),
     path('blog/categories/<int:categoryId>/dynamics', CategoryDynamicsView.as_view()),
     path('blog/tags/<int:tagId>/dynamics', TagDynamicsView.as_view()),
     path('blog/stats', StatsView.as_view()),
