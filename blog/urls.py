@@ -19,9 +19,6 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
 
 from apps.user.views import *
 from apps.dynamic.views import *
@@ -30,27 +27,6 @@ from apps.tag.views import *
 from apps.dashboard.views import StatsView
 from apps.comment.views import CommentViewSet
 from apps.upload.views import AvatarUploadView
-
-# 关于页面 API 视图
-class AboutView(APIView):
-    permission_classes = [AllowAny]
-    
-    def get(self, request):
-        """
-        返回博客关于信息
-        """
-        about_data = {
-            "name": "个人博客系统",
-            "description": "基于 Django REST Framework 开发的博客后台系统",
-            "version": "1.0.0",
-            "author": "博主",
-            "contact": "example@example.com"
-        }
-        return Response({
-            'code': 200,
-            'message': 'success',
-            'data': about_data
-        })
 
 # 创建路由器
 router = DefaultRouter()
@@ -74,7 +50,6 @@ urlpatterns = [
     path('blog/categories/<int:categoryId>/dynamics', CategoryDynamicsView.as_view()),
     path('blog/tags/<int:tagId>/dynamics', TagDynamicsView.as_view()),
     path('blog/stats', StatsView.as_view()),
-    path('blog/about', AboutView.as_view()),
     
     # 后台管理API
     path('api/dynamics', DynamicViewSet.as_view({
