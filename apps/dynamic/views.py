@@ -93,13 +93,20 @@ class DynamicViewSet(ModelViewSet):
         })
     
     def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response({
-            'code': 200,
-            'message': 'success',
-            'data': serializer.data
-        })
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return Response({
+                'code': 200,
+                'message': 'success',
+                'data': serializer.data
+            })
+        except Exception as e:
+            return Response({
+                'code': 404,
+                'message': '动态不存在或已被删除',
+                'data': None
+            }, status=status.HTTP_404_NOT_FOUND)
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
