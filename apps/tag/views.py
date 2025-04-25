@@ -3,6 +3,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from django.db.models import Count
 from .models import Tag
 from .serializers import TagSerializer
 
@@ -10,15 +11,32 @@ from .serializers import TagSerializer
 class TagViewSet(ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action == 'list':
+            return []  # 根据前端要求，实际需要保持认证
+        return super().get_permissions()
     
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
+        # 添加动态计数
+        queryset = self.filter_queryset(self.get_queryset()).annotate(
+            dynamic_count=Count('dynamic')
+        )
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'code': 200,
-            'data': serializer.data,
-            'message': '获取标签列表成功'
+            'data': {
+                'items': serializer.data,
+                'total': queryset.count()
+            },
+            'message': 'success'
         })
     
     def create(self, request, *args, **kwargs):
@@ -44,6 +62,12 @@ class TagViewSet(ModelViewSet):
         
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        # 检查是否有关联的动态
+        if hasattr(instance, 'dynamic_set') and instance.dynamic_set.exists():
+            return Response({
+                'code': 400,
+                'message': '该标签下有动态，不能删除'
+            })
         self.perform_destroy(instance)
         return Response({
             'code': 200,

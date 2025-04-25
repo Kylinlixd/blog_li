@@ -4,7 +4,8 @@ from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from apps.dynamic.serializers import (
     DynamicSerializer, AdjacentDynamicSerializer,
     HotDynamicSerializer, RecentDynamicSerializer,
-    AdminDynamicSerializer, SimpleDynamicSerializer
+    AdminDynamicSerializer, SimpleDynamicSerializer,
+    DynamicCreateSerializer
 )
 from django.db.models import Q, F
 from rest_framework.response import Response
@@ -44,6 +45,10 @@ class DynamicViewSet(ModelViewSet):
         return [IsAuthenticated()]
     
     def get_serializer_class(self):
+        # 对于创建操作，使用DynamicCreateSerializer
+        if self.action == 'create':
+            return DynamicCreateSerializer
+            
         # 检查是否请求简化版数据格式
         if self.request.query_params.get('format') == 'simple':
             return SimpleDynamicSerializer
@@ -125,7 +130,13 @@ class DynamicViewSet(ModelViewSet):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial, context={'request': request})
+        
+        # 如果请求包含mediaUrls、categoryId或tags字段，则使用DynamicCreateSerializer
+        if any(field in request.data for field in ['mediaUrls', 'categoryId', 'tags']):
+            serializer = DynamicCreateSerializer(instance, data=request.data, partial=partial, context={'request': request})
+        else:
+            serializer = self.get_serializer(instance, data=request.data, partial=partial, context={'request': request})
+            
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({

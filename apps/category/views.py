@@ -5,7 +5,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Category
-from .serializers import CategorySerializer
+from .serializers import CategorySerializer, SimpleCategorySerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -20,12 +20,13 @@ class CategoryViewSet(ModelViewSet):
         return super().get_permissions()
 
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
+        # 只获取顶级分类（parent为null）
+        queryset = Category.objects.filter(parent=None)
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'code': 200,
             'data': serializer.data,
-            'message': '获取分类列表成功'
+            'message': 'success'
         })
     
     def create(self, request, *args, **kwargs):
@@ -51,6 +52,18 @@ class CategoryViewSet(ModelViewSet):
         
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        # 检查是否有子分类
+        if hasattr(instance, 'children') and instance.children.exists():
+            return Response({
+                'code': 400,
+                'message': '该分类下有子分类，不能删除'
+            })
+        # 检查是否有关联的动态
+        if hasattr(instance, 'dynamic_set') and instance.dynamic_set.exists():
+            return Response({
+                'code': 400,
+                'message': '该分类下有动态，不能删除'
+            })
         self.perform_destroy(instance)
         return Response({
             'code': 200,
@@ -65,7 +78,8 @@ class BlogCategoriesView(APIView):
     permission_classes = [AllowAny]
     
     def get(self, request):
-        categories = Category.objects.all()
+        # 只获取顶级分类（parent为null）
+        categories = Category.objects.filter(parent=None)
         serializer = CategorySerializer(categories, many=True)
         return Response({
             'code': 200,
