@@ -52,6 +52,7 @@ urlpatterns = [
     path('blog/stats', StatsView.as_view()),
     
     # 后台管理API
+    path('api/stats', StatsView.as_view()),
     path('api/dynamics', DynamicViewSet.as_view({
         'get': 'list',
         'post': 'create'
