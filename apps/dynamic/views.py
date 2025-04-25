@@ -4,7 +4,7 @@ from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from apps.dynamic.serializers import (
     DynamicSerializer, AdjacentDynamicSerializer,
     HotDynamicSerializer, RecentDynamicSerializer,
-    AdminDynamicSerializer
+    AdminDynamicSerializer, SimpleDynamicSerializer
 )
 from django.db.models import Q, F
 from rest_framework.response import Response
@@ -44,6 +44,10 @@ class DynamicViewSet(ModelViewSet):
         return [IsAuthenticated()]
     
     def get_serializer_class(self):
+        # 检查是否请求简化版数据格式
+        if self.request.query_params.get('format') == 'simple':
+            return SimpleDynamicSerializer
+        
         if self.request.path.startswith('/api'):
             return AdminDynamicSerializer
         return DynamicSerializer

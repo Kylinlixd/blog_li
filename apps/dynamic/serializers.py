@@ -147,3 +147,36 @@ class AdminDynamicSerializer(serializers.ModelSerializer):
         if obj.type != 'video' or not obj.video_data:
             return None
         return obj.video
+
+
+class SimpleDynamicSerializer(serializers.ModelSerializer):
+    """
+    简化的动态序列化器，按照指定格式返回动态数据
+    {
+      "type": "text/image/audio/video", // 内容类型
+      "content": "动态的文字内容", // 文本内容
+      "mediaUrls": [], // 媒体文件URL数组，根据类型包含图片、音频或视频链接
+      "status": "draft/published" // 状态：草稿或已发布
+    }
+    """
+    mediaUrls = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Dynamic
+        fields = ['id', 'type', 'content', 'mediaUrls', 'status']
+    
+    def get_mediaUrls(self, obj):
+        # 根据动态类型返回不同的媒体URL
+        if obj.type == 'image' and obj.images_data:
+            # 从图片数据中提取所有URL
+            return [img.get('url') for img in obj.images]
+        elif obj.type == 'audio' and obj.audio_data:
+            # 返回音频URL
+            audio = obj.audio
+            return [audio.get('url')] if audio and 'url' in audio else []
+        elif obj.type == 'video' and obj.video_data:
+            # 返回视频URL
+            video = obj.video
+            return [video.get('url')] if video and 'url' in video else []
+        else:
+            return []
