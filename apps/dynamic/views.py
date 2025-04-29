@@ -38,7 +38,7 @@ class DynamicPagination(PageNumberPagination):
 class DynamicViewSet(ModelViewSet):
     queryset = Dynamic.objects.all()
     pagination_class = DynamicPagination
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # 允许所有用户访问
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -61,24 +61,42 @@ class DynamicViewSet(ModelViewSet):
         if status:
             queryset = queryset.filter(status=status)
         
+        # 排序
+        sort = self.request.query_params.get('params[sort]')
+        if sort:
+            field, order = sort.split(':')
+            if field == 'createdAt':
+                field = 'created_at'
+            if order == 'desc':
+                field = f'-{field}'
+            queryset = queryset.order_by(field)
+        
         return queryset
     
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            'code': 200,
-            'message': 'success',
-            'data': {
-                'total': queryset.count(),
-                'list' if request.path.startswith('/blog') else 'items': serializer.data
-            }
-        })
+        try:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+            
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                'code': 200,
+                'message': 'success',
+                'data': {
+                    'total': queryset.count(),
+                    'items': serializer.data
+                }
+            })
+        except Exception as e:
+            print(f"获取动态列表错误: {str(e)}")  # 打印错误信息
+            return Response({
+                'code': 500,
+                'message': str(e),
+                'data': None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def retrieve(self, request, *args, **kwargs):
         try:
@@ -86,9 +104,9 @@ class DynamicViewSet(ModelViewSet):
             serializer = self.get_serializer(instance)
             return Response({
                 'code': 200,
-                'message': 'success',
+                'message': '动态不存在或已被删除',
                 'data': serializer.data
-            })
+            }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({
                 'code': 404,

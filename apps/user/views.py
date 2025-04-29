@@ -22,24 +22,50 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def login(self, request):
-        serializer = UserLoginSerializer(data=request.data)
-        if serializer.is_valid():
-            username = serializer.validated_data['username']
-            password = serializer.validated_data['password']
-            user = authenticate(username=username, password=password)
-            if user:
+        try:
+            print(f"登录请求数据: {request.data}")  # 打印请求数据
+            serializer = UserLoginSerializer(data=request.data)
+            if serializer.is_valid():
+                username = serializer.validated_data['username']
+                password = serializer.validated_data['password']
+                print(f"尝试认证用户: {username}")  # 打印用户名
+                user = authenticate(username=username, password=password)
+                if user:
+                    print(f"用户认证成功: {username}")  # 打印认证成功
+                    if not user.is_active:
+                        print(f"用户被禁用: {username}")  # 打印用户被禁用
+                        return Response({
+                            'code': 403,
+                            'message': '用户已被禁用',
+                            'data': None
+                        }, status=status.HTTP_403_FORBIDDEN)
+                    return Response({
+                        'code': 200,
+                        'data': {
+                            'token': str(CustomTokenObtainPairSerializer.get_token(user)),
+                            'userInfo': UserSerializer(user).data
+                        },
+                        'message': '登录成功'
+                    })
+                print(f"用户认证失败: {username}")  # 打印认证失败
                 return Response({
-                    'code': 200,
-                    'data': {
-                        'token': str(CustomTokenObtainPairSerializer.get_token(user)),
-                        'userInfo': UserSerializer(user).data
-                    },
-                    'message': '登录成功'
-                })
-        return Response({
-            'code': 400,
-            'message': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+                    'code': 401,
+                    'message': '用户名或密码错误',
+                    'data': None
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            print(f"数据验证失败: {serializer.errors}")  # 打印验证错误
+            return Response({
+                'code': 400,
+                'message': serializer.errors,
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"登录异常: {str(e)}")  # 打印异常信息
+            return Response({
+                'code': 500,
+                'message': str(e),
+                'data': None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['post'])
     def register(self, request):
@@ -61,12 +87,50 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def info(self, request):
-        user = request.user
-        return Response({
-            'code': 200,
-            'data': UserSerializer(user).data,
-            'message': '获取用户信息成功'
-        })
+        try:
+            print(f"用户信息请求开始 ==================")
+            print(f"请求用户: {request.user}")
+            print(f"请求用户ID: {request.user.id if request.user else None}")
+            print(f"请求用户是否认证: {request.user.is_authenticated}")
+            print(f"请求头: {request.headers}")
+            
+            user = request.user
+            if not user.is_authenticated:
+                print("用户未认证")
+                return Response({
+                    'code': 401,
+                    'message': '用户未登录',
+                    'data': None
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            print(f"用户对象属性: {dir(user)}")
+            print(f"用户字段值:")
+            for field in ['username', 'nickname', 'email', 'avatar', 'bio', 'role', 'permissions']:
+                print(f"{field}: {getattr(user, field, None)}")
+                
+            serializer = UserSerializer(user)
+            print(f"序列化数据: {serializer.data}")
+            
+            response_data = {
+                'code': 200,
+                'data': serializer.data,
+                'message': '获取用户信息成功'
+            }
+            print(f"响应数据: {response_data}")
+            print(f"用户信息请求结束 ==================")
+            return Response(response_data)
+            
+        except Exception as e:
+            print(f"获取用户信息异常: {str(e)}")
+            print(f"异常类型: {type(e)}")
+            print(f"异常详情: {e.__dict__}")
+            import traceback
+            print(f"异常堆栈: {traceback.format_exc()}")
+            return Response({
+                'code': 500,
+                'message': str(e),
+                'data': None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['put'])
     def password(self, request):

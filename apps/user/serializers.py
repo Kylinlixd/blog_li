@@ -10,6 +10,13 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'nickname', 'email', 'avatar', 'bio', 'role', 'permissions', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # 确保 permissions 字段始终返回列表
+        if 'permissions' in data and not isinstance(data['permissions'], list):
+            data['permissions'] = []
+        return data
 
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()

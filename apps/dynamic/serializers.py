@@ -30,8 +30,8 @@ class DynamicSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
     audio = serializers.SerializerMethodField()
     video = serializers.SerializerMethodField()
-    createdAt = serializers.DateTimeField(source='create_time', read_only=True)
-    updatedAt = serializers.DateTimeField(source='update_time', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     
     class Meta:
         model = Dynamic
@@ -230,6 +230,8 @@ class DynamicListSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     
     class Meta:
         model = Dynamic
