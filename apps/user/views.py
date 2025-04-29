@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.views import TokenObtainPairView
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from .serializers import (
     UserSerializer, UserLoginSerializer, UserRegisterSerializer,
     UserProfileSerializer, ChangePasswordSerializer, CustomTokenObtainPairSerializer
@@ -16,7 +16,7 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     
     def get_permissions(self):
-        if self.action in ['create', 'login']:
+        if self.action in ['create', 'login', 'register']:
             return [AllowAny()]
         return [IsAuthenticated()]
     
@@ -24,18 +24,21 @@ class UserViewSet(viewsets.ModelViewSet):
     def login(self, request):
         serializer = UserLoginSerializer(data=request.data)
         if serializer.is_valid():
-            user = User.objects.get(username=serializer.validated_data['username'])
-            return Response({
-                'code': 200,
-                'data': {
-                    'token': str(CustomTokenObtainPairSerializer.get_token(user)),
-                    'userInfo': UserSerializer(user).data
-                },
-                'message': '登录成功'
-            })
+            username = serializer.validated_data['username']
+            password = serializer.validated_data['password']
+            user = authenticate(username=username, password=password)
+            if user:
+                return Response({
+                    'code': 200,
+                    'data': {
+                        'token': str(CustomTokenObtainPairSerializer.get_token(user)),
+                        'userInfo': UserSerializer(user).data
+                    },
+                    'message': '登录成功'
+                })
         return Response({
             'code': 400,
-            'message': '用户名或密码错误'
+            'message': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'])
