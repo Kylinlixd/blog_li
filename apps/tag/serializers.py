@@ -20,4 +20,24 @@ class TagSerializer(serializers.ModelSerializer):
         # 获取使用该标签的动态数量
         if hasattr(obj, 'dynamic_count'):
             return obj.dynamic_count
-        return obj.dynamic_set.count() 
+        return obj.dynamic_set.count()
+
+class TagCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['name']
+    
+    def validate_name(self, value):
+        if Tag.objects.filter(name=value).exists():
+            raise serializers.ValidationError("标签名称已存在")
+        return value
+
+class TagUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['name']
+    
+    def validate_name(self, value):
+        if Tag.objects.filter(name=value).exclude(id=self.instance.id).exists():
+            raise serializers.ValidationError("标签名称已存在")
+        return value 

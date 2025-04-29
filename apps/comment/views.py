@@ -6,7 +6,10 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from .models import Comment
-from .serializers import CommentSerializer
+from .serializers import (
+    CommentSerializer, CommentCreateSerializer,
+    CommentUpdateSerializer
+)
 
 # Create your views here.
 class CommentPagination(PageNumberPagination):
@@ -27,62 +30,95 @@ class CommentPagination(PageNumberPagination):
 
 class CommentViewSet(ModelViewSet):
     queryset = Comment.objects.all()
-    serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class = CommentPagination
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CommentCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return CommentUpdateSerializer
+        return CommentSerializer
     
     def get_queryset(self):
-        queryset = Comment.objects.all().select_related('post')
-        params = self.request.query_params
+        queryset = super().get_queryset()
         
         # 过滤条件
-        if 'postTitle' in params and params['postTitle']:
-            queryset = queryset.filter(post__title__icontains=params['postTitle'])
-        if 'author' in params and params['author']:
-            queryset = queryset.filter(author__icontains=params['author'])
-        if 'status' in params and params['status']:
-            queryset = queryset.filter(status=params['status'])
-            
+        author = self.request.query_params.get('author')
+        status = self.request.query_params.get('status')
+        
+        if author:
+            queryset = queryset.filter(author__username=author)
+        if status:
+            queryset = queryset.filter(status=status)
+        
         return queryset
     
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
+        queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'code': 200,
-            'data': serializer.data,
+            'data': {
+                'list': serializer.data,
+                'total': queryset.count()
+            },
             'message': '获取评论列表成功'
+        })
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'code': 200,
+                'data': serializer.data,
+                'message': '创建评论成功'
+            })
+        return Response({
+            'code': 400,
+            'message': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'code': 200,
+                'data': serializer.data,
+                'message': '更新评论成功'
+            })
+        return Response({
+            'code': 400,
+            'message': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.delete()
+        return Response({
+            'code': 200,
+            'message': '删除评论成功'
         })
     
     @action(detail=True, methods=['put'])
     def approve(self, request, pk=None):
-        comment = self.get_object()
-        comment.status = 'approved'
-        comment.save()
+        instance = self.get_object()
+        instance.status = 'approved'
+        instance.save()
         return Response({
             'code': 200,
-            'message': '评论已批准'
+            'message': '评论审核通过'
         })
     
     @action(detail=True, methods=['put'])
     def reject(self, request, pk=None):
-        comment = self.get_object()
-        comment.status = 'rejected'
-        comment.save()
-        return Response({
-            'code': 200,
-            'message': '评论已拒绝'
-        })
-    
-    def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        self.perform_destroy(instance)
+        instance.status = 'rejected'
+        instance.save()
         return Response({
             'code': 200,
-            'message': '评论已删除'
+            'message': '评论审核拒绝'
         })

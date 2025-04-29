@@ -15,6 +15,7 @@ class CategorySerializer(serializers.ModelSerializer):
             'description': {'required': False},
             'sort': {'required': False}
         }
+        read_only_fields = ['id', 'createdAt', 'updatedAt']
     
     def get_children(self, obj):
         # 只为顶级分类获取子分类
@@ -39,3 +40,23 @@ class SimpleCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'description', 'parentId', 'sort', 'createdAt', 'updatedAt']
+
+class CategoryCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['name', 'description']
+    
+    def validate_name(self, value):
+        if Category.objects.filter(name=value).exists():
+            raise serializers.ValidationError("分类名称已存在")
+        return value
+
+class CategoryUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['name', 'description']
+    
+    def validate_name(self, value):
+        if Category.objects.filter(name=value).exclude(id=self.instance.id).exists():
+            raise serializers.ValidationError("分类名称已存在")
+        return value

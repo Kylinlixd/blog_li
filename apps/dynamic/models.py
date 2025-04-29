@@ -7,39 +7,39 @@ import json
 User = get_user_model()
 
 class Dynamic(models.Model):
-    STATUS_CHOICES = (
-        ('draft', '草稿'),
-        ('published', '已发布'),
-    )
-    
     TYPE_CHOICES = (
         ('text', '文本'),
         ('image', '图片'),
         ('audio', '音频'),
-        ('video', '视频'),
+        ('video', '视频')
     )
     
-    title = models.CharField(max_length=200, verbose_name='标题')
-    content = models.TextField(verbose_name='内容')
-    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='text', verbose_name='类型')
-    images_data = models.TextField(blank=True, null=True, verbose_name='图片数据')
-    audio_data = models.TextField(blank=True, null=True, verbose_name='音频数据')
-    video_data = models.TextField(blank=True, null=True, verbose_name='视频数据')
-    author = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='作者')
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, verbose_name='分类')
-    tags = models.ManyToManyField(Tag, blank=True, verbose_name='标签')
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft', verbose_name='状态')
-    views = models.PositiveIntegerField(default=0, verbose_name='浏览量')
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-
+    STATUS_CHOICES = (
+        ('draft', '草稿'),
+        ('published', '已发布')
+    )
+    
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dynamics')
+    content = models.TextField(help_text="动态内容")
+    type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='text')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    media_urls = models.JSONField(default=list, blank=True, help_text="媒体文件URL数组")
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='dynamics')
+    tags = models.ManyToManyField(Tag, related_name='dynamics', blank=True)
+    view_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
     class Meta:
-        verbose_name = '动态'
-        verbose_name_plural = verbose_name
-        ordering = ['-create_time']
-
+        db_table = 'dynamic'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['type', 'status']),
+            models.Index(fields=['created_at']),
+        ]
+    
     def __str__(self):
-        return self.title
+        return f"{self.author.username}'s {self.type} dynamic"
         
     @property
     def images(self):

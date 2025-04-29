@@ -7,6 +7,8 @@ from rest_framework import status
 import os
 import uuid
 from django.conf import settings
+from .models import UploadFile
+from .serializers import UploadFileSerializer, FileUploadSerializer
 
 # Create your views here.
 class AvatarUploadView(APIView):
@@ -64,3 +66,49 @@ class AvatarUploadView(APIView):
             },
             'message': '头像上传成功'
         })
+
+class FileUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        if serializer.is_valid():
+            file = request.FILES['file']
+            file_type = serializer.validated_data['file_type']
+            
+            # 生成唯一文件名
+            file_ext = os.path.splitext(file.name)[1]
+            file_name = f"{uuid.uuid4()}{file_ext}"
+            
+            # 构建文件保存路径
+            upload_dir = os.path.join(settings.MEDIA_ROOT, file_type)
+            os.makedirs(upload_dir, exist_ok=True)
+            file_path = os.path.join(upload_dir, file_name)
+            
+            # 保存文件
+            with open(file_path, 'wb+') as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+            
+            # 构建文件URL
+            file_url = f"{settings.MEDIA_URL}{file_type}/{file_name}"
+            
+            # 保存文件信息到数据库
+            upload_file = UploadFile.objects.create(
+                name=file.name,
+                file_type=file_type,
+                file_size=file.size,
+                file_url=file_url,
+                uploader=request.user
+            )
+            
+            return Response({
+                'code': 200,
+                'data': UploadFileSerializer(upload_file).data,
+                'message': '文件上传成功'
+            })
+        
+        return Response({
+            'code': 400,
+            'message': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)

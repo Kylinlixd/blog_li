@@ -3,17 +3,18 @@ from django.db import models
 # Create your models here.
 
 class Category(models.Model):
-    name = models.CharField(max_length=50, unique=True)
-    description = models.TextField(blank=True)
+    name = models.CharField(max_length=50, unique=True, help_text="分类名称")
+    description = models.TextField(blank=True, help_text="分类描述")
     parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children')
     sort = models.IntegerField(default=0)
-    create_time = models.DateTimeField(auto_now_add=True)
-    update_time = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'category'
-        verbose_name_plural = 'categories'
-        ordering = ['sort', 'id']
+        ordering = ['-created_at']
+        verbose_name = '分类'
+        verbose_name_plural = verbose_name
 
     def __str__(self):
         return self.name

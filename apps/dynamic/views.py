@@ -5,7 +5,7 @@ from apps.dynamic.serializers import (
     DynamicSerializer, AdjacentDynamicSerializer,
     HotDynamicSerializer, RecentDynamicSerializer,
     AdminDynamicSerializer, SimpleDynamicSerializer,
-    DynamicCreateSerializer
+    DynamicCreateSerializer, DynamicUpdateSerializer, DynamicListSerializer
 )
 from django.db.models import Q, F
 from rest_framework.response import Response
@@ -38,49 +38,28 @@ class DynamicPagination(PageNumberPagination):
 class DynamicViewSet(ModelViewSet):
     queryset = Dynamic.objects.all()
     pagination_class = DynamicPagination
-    
-    def get_permissions(self):
-        if self.request.path.startswith('/blog'):
-            return [AllowAny()]
-        return [IsAuthenticated()]
+    permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
-        # 对于创建操作，使用DynamicCreateSerializer
         if self.action == 'create':
             return DynamicCreateSerializer
-            
-        # 检查是否请求简化版数据格式
-        if self.request.query_params.get('format') == 'simple':
-            return SimpleDynamicSerializer
-        
-        if self.request.path.startswith('/api'):
-            return AdminDynamicSerializer
+        elif self.action in ['update', 'partial_update']:
+            return DynamicUpdateSerializer
+        elif self.action == 'list':
+            return DynamicListSerializer
         return DynamicSerializer
     
     def get_queryset(self):
-        queryset = self.queryset
+        queryset = super().get_queryset()
         
-        # 前台API只能看到已发布的动态
-        if self.request.path.startswith('/blog'):
-            queryset = queryset.filter(status='published')
+        # 过滤条件
+        type = self.request.query_params.get('type')
+        status = self.request.query_params.get('status')
         
-        # 后台API可以根据状态筛选
-        elif 'status' in self.request.query_params:
-            status = self.request.query_params.get('status')
+        if type:
+            queryset = queryset.filter(type=type)
+        if status:
             queryset = queryset.filter(status=status)
-        
-        # 根据类型筛选
-        if 'type' in self.request.query_params:
-            type_val = self.request.query_params.get('type')
-            queryset = queryset.filter(type=type_val)
-        
-        # 关键词搜索
-        if 'keyword' in self.request.query_params:
-            keyword = self.request.query_params.get('keyword')
-            queryset = queryset.filter(
-                Q(title__icontains=keyword) | 
-                Q(content__icontains=keyword)
-            )
         
         return queryset
     
@@ -163,75 +142,66 @@ class DynamicViewSet(ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def adjacent(self, request, pk=None):
-        dynamic = self.get_object()
-        prev_dynamic = Dynamic.objects.filter(
-            status='published',
-            create_time__lt=dynamic.create_time
-        ).order_by('-create_time').first()
+        current = self.get_object()
+        prev = Dynamic.objects.filter(
+            created_at__lt=current.created_at,
+            status='published'
+        ).order_by('-created_at').first()
         
-        next_dynamic = Dynamic.objects.filter(
-            status='published',
-            create_time__gt=dynamic.create_time
-        ).order_by('create_time').first()
-        
-        serializer = AdjacentDynamicSerializer({
-            'prev': prev_dynamic,
-            'next': next_dynamic
-        })
+        next = Dynamic.objects.filter(
+            created_at__gt=current.created_at,
+            status='published'
+        ).order_by('created_at').first()
         
         return Response({
             'code': 200,
-            'message': 'success',
-            'data': serializer.data
+            'data': {
+                'prev': DynamicListSerializer(prev).data if prev else None,
+                'next': DynamicListSerializer(next).data if next else None
+            },
+            'message': '获取相邻动态成功'
         })
     
     @action(detail=True, methods=['post'])
     def view(self, request, pk=None):
         dynamic = self.get_object()
-        dynamic.views = F('views') + 1
+        dynamic.view_count += 1
         dynamic.save()
         return Response({
             'code': 200,
-            'message': 'success',
-            'data': None
+            'message': '浏览量增加成功'
         })
 
 
-class RecentDynamicsView(APIView):
-    permission_classes = [AllowAny]
+class HotDynamicsView(ReadOnlyModelViewSet):
+    queryset = Dynamic.objects.filter(status='published').order_by('-view_count')
+    serializer_class = DynamicListSerializer
+    permission_classes = []
     
-    def get(self, request):
-        # 获取limit参数，默认为5
+    def list(self, request, *args, **kwargs):
         limit = int(request.query_params.get('limit', 5))
-        if limit > 20:  # 限制最大数量
-            limit = 20
-            
-        # 获取最近的动态
-        recent_dynamics = Dynamic.objects.filter(status='published').order_by('-create_time')[:limit]
-        
-        serializer = RecentDynamicSerializer(recent_dynamics, many=True)
+        queryset = self.get_queryset()[:limit]
+        serializer = self.get_serializer(queryset, many=True)
         return Response({
             'code': 200,
-            'message': 'success',
-            'data': serializer.data
+            'data': serializer.data,
+            'message': '获取热门动态成功'
         })
 
 
-class HotDynamicsView(APIView):
-    permission_classes = [AllowAny]
+class RecentDynamicsView(ReadOnlyModelViewSet):
+    queryset = Dynamic.objects.filter(status='published').order_by('-created_at')
+    serializer_class = DynamicListSerializer
+    permission_classes = []
     
-    def get(self, request):
+    def list(self, request, *args, **kwargs):
         limit = int(request.query_params.get('limit', 5))
-        if limit > 20:
-            limit = 20
-            
-        hot_dynamics = Dynamic.objects.filter(status='published').order_by('-views')[:limit]
-        serializer = HotDynamicSerializer(hot_dynamics, many=True)
-        
+        queryset = self.get_queryset()[:limit]
+        serializer = self.get_serializer(queryset, many=True)
         return Response({
             'code': 200,
-            'message': 'success',
-            'data': serializer.data
+            'data': serializer.data,
+            'message': '获取最新动态成功'
         })
 
 

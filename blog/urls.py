@@ -19,6 +19,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.user.views import *
 from apps.dynamic.views import *
@@ -26,27 +27,31 @@ from apps.category.views import *
 from apps.tag.views import *
 from apps.dashboard.views import StatsView
 from apps.comment.views import CommentViewSet
-from apps.upload.views import AvatarUploadView
+from apps.upload.views import AvatarUploadView, FileUploadView
 
 # 创建路由器
 router = DefaultRouter()
-router.register(r'blog/dynamics', DynamicViewSet, basename='dynamic')
+router.register(r'users', UserViewSet, basename='user')
+router.register(r'dynamics', DynamicViewSet, basename='dynamic')
+router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r'tags', TagViewSet, basename='tag')
+router.register(r'comments', CommentViewSet, basename='comment')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
     # 认证相关
-    path('api/auth/login', LoginView.as_view()),
-    path('api/auth/register', RegisterView.as_view()),
+    path('api/auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/info', UserInfoView.as_view()),
     path('api/auth/password', ChangePasswordView.as_view()),
     path('api/auth/profile', ProfileUpdateView.as_view()),
     
     # 博客前台API
-    path('', include(router.urls)),
-    path('blog/dynamics/hot', HotDynamicsView.as_view()),
-    path('blog/dynamics/recent', RecentDynamicsView.as_view()),
-    path('blog/categories', BlogCategoriesView.as_view()),
+    path('api/', include(router.urls)),
+    path('blog/dynamics/hot/', HotDynamicsView.as_view({'get': 'list'}), name='hot-dynamics'),
+    path('blog/dynamics/recent/', RecentDynamicsView.as_view({'get': 'list'}), name='recent-dynamics'),
+    path('blog/categories/', BlogCategoriesView.as_view({'get': 'list'}), name='blog-categories'),
     path('blog/categories/<int:categoryId>/dynamics', CategoryDynamicsView.as_view()),
     path('blog/tags/<int:tagId>/dynamics', TagDynamicsView.as_view()),
     path('blog/stats', StatsView.as_view()),
@@ -94,6 +99,7 @@ urlpatterns = [
         'delete': 'destroy'
     })),
     path('api/upload/avatar', AvatarUploadView.as_view()),
+    path('api/upload/file/', FileUploadView.as_view(), name='file-upload'),
 ]
 
 # 添加媒体文件URL
