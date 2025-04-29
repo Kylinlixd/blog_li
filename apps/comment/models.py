@@ -12,7 +12,7 @@ class Comment(models.Model):
     )
     
     content = models.TextField(help_text="评论内容")
-    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comments', default=1)
     dynamic = models.ForeignKey('dynamic.Dynamic', on_delete=models.CASCADE, related_name='comments')
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')

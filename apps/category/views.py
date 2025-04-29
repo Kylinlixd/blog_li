@@ -1,13 +1,10 @@
 from django.shortcuts import render
-
-# Create your views here.
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, ViewSet
 from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Category
 from .serializers import CategorySerializer, SimpleCategorySerializer
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
@@ -71,13 +68,13 @@ class CategoryViewSet(ModelViewSet):
         })
 
 
-class BlogCategoriesView(APIView):
+class BlogCategoriesView(ViewSet):
     """
     前台获取分类列表API
     """
     permission_classes = [AllowAny]
     
-    def get(self, request):
+    def list(self, request):
         # 只获取顶级分类（parent为null）
         categories = Category.objects.filter(parent=None)
         serializer = CategorySerializer(categories, many=True)

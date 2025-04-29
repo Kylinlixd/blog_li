@@ -21,13 +21,13 @@ from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from apps.user.views import *
-from apps.dynamic.views import *
-from apps.category.views import *
-from apps.tag.views import *
-from apps.dashboard.views import StatsView
+from apps.user.views import UserViewSet, CustomTokenObtainPairView
+from apps.dynamic.views import DynamicViewSet, HotDynamicsView, RecentDynamicsView
+from apps.category.views import CategoryViewSet, BlogCategoriesView
+from apps.tag.views import TagViewSet
 from apps.comment.views import CommentViewSet
-from apps.upload.views import AvatarUploadView, FileUploadView
+from apps.upload.views import FileUploadView
+from apps.dashboard.views import StatsView
 
 # 创建路由器
 router = DefaultRouter()
@@ -39,67 +39,25 @@ router.register(r'comments', CommentViewSet, basename='comment')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/', include(router.urls)),
     
     # 认证相关
     path('api/auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/auth/info', UserInfoView.as_view()),
-    path('api/auth/password', ChangePasswordView.as_view()),
-    path('api/auth/profile', ProfileUpdateView.as_view()),
+    path('api/auth/info/', UserViewSet.as_view({'get': 'info'}), name='user-info'),
+    path('api/auth/password/', UserViewSet.as_view({'put': 'password'}), name='change-password'),
+    path('api/auth/profile/', UserViewSet.as_view({'put': 'profile'}), name='update-profile'),
     
     # 博客前台API
-    path('api/', include(router.urls)),
     path('blog/dynamics/hot/', HotDynamicsView.as_view({'get': 'list'}), name='hot-dynamics'),
     path('blog/dynamics/recent/', RecentDynamicsView.as_view({'get': 'list'}), name='recent-dynamics'),
     path('blog/categories/', BlogCategoriesView.as_view({'get': 'list'}), name='blog-categories'),
-    path('blog/categories/<int:categoryId>/dynamics', CategoryDynamicsView.as_view()),
-    path('blog/tags/<int:tagId>/dynamics', TagDynamicsView.as_view()),
-    path('blog/stats', StatsView.as_view()),
     
-    # 后台管理API
-    path('api/stats', StatsView.as_view()),
-    path('api/dynamics', DynamicViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    })),
-    path('api/dynamics/<int:pk>', DynamicViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'delete': 'destroy'
-    })),
-    path('api/dynamics/<int:pk>/adjacent', DynamicViewSet.as_view({'get': 'adjacent'})),
-    path('api/dynamics/<int:pk>/view', DynamicViewSet.as_view({'post': 'view'})),
-    
-    # 其他API
-    path('api/categories', CategoryViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    })),
-    path('api/categories/<int:pk>', CategoryViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'delete': 'destroy'
-    })),
-    path('api/tags', TagViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    })),
-    path('api/tags/<int:pk>', TagViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'delete': 'destroy'
-    })),
-    path('api/comments', CommentViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    })),
-    path('api/comments/<int:pk>', CommentViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'delete': 'destroy'
-    })),
-    path('api/upload/avatar', AvatarUploadView.as_view()),
+    # 文件上传API
     path('api/upload/file/', FileUploadView.as_view(), name='file-upload'),
+    
+    # 仪表盘统计API
+    path('api/stats/', StatsView.as_view(), name='stats'),
 ]
 
 # 添加媒体文件URL
