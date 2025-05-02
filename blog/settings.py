@@ -144,8 +144,42 @@ if 'test' in sys.argv:
 
 # 跨域配置
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8080",  # 前端开发地址
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    # 添加生产环境域名
 ]
+
+# 或者允许所有来源（不推荐用于生产环境）
+# CORS_ALLOW_ALL_ORIGINS = True
+
+# 允许凭证（cookies等）
+CORS_ALLOW_CREDENTIALS = True
+
+# 允许的方法
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# 允许的头部
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# 预检请求的有效期（秒）
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24小时
 
 # DRF配置
 REST_FRAMEWORK = {
