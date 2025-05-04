@@ -1,6 +1,8 @@
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
+from django.conf import settings
+import traceback
 
 def custom_exception_handler(exc, context):
     """
@@ -26,10 +28,27 @@ def custom_exception_handler(exc, context):
                 error_message = str(exc.detail)
         
         # 返回统一的响应格式
-        response.data = {
+        response_data = {
             'code': response.status_code,
             'message': error_message,
             'data': None
         }
+        
+        # 在DEBUG模式下添加详细的错误信息
+        if settings.DEBUG:
+            error_class = exc.__class__.__name__
+            error_detail = str(exc)
+            error_traceback = traceback.format_exc()
+            
+            response_data['debug'] = {
+                'exception_class': error_class,
+                'exception_detail': error_detail,
+                'traceback': error_traceback.split('\n'),
+                'view': context['view'].__class__.__name__ if 'view' in context else None,
+                'request_method': context['request'].method if 'request' in context else None,
+                'request_path': context['request'].path if 'request' in context else None,
+            }
+            
+        response.data = response_data
     
     return response 
