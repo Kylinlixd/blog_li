@@ -21,7 +21,14 @@ def custom_exception_handler(exc, context):
                 # 如果是字段验证错误
                 error_fields = []
                 for field, errors in exc.detail.items():
-                    error_fields.append(f"{field}: {' '.join(errors)}")
+                    # 处理不同类型的错误信息
+                    if isinstance(errors, list):
+                        # 确保列表中的每个项都转换为字符串
+                        error_str = ' '.join(str(err) for err in errors)
+                        error_fields.append(f"{field}: {error_str}")
+                    else:
+                        # 处理单个错误或其他类型
+                        error_fields.append(f"{field}: {str(errors)}")
                 error_message = '；'.join(error_fields)
             else:
                 # 其他类型的错误

@@ -10,6 +10,7 @@ from apps.category.models import Category
 from apps.tag.models import Tag
 from apps.comment.models import Comment
 from rest_framework import status
+from django.conf import settings
 
 # Create your views here.
 class StatsView(APIView):
@@ -17,6 +18,7 @@ class StatsView(APIView):
     获取博客统计数据API
     """
     permission_classes = [AllowAny]  # 允许所有用户访问
+    authentication_classes = []  # 不进行任何认证
     
     def get(self, request):
         try:
@@ -85,9 +87,16 @@ class StatsView(APIView):
                 }
             })
         except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
             print(f"统计接口错误: {str(e)}")  # 打印错误信息
+            print(f"错误堆栈: {error_traceback}")  # 打印完整堆栈
             return Response({
                 'code': 500,
-                'message': str(e),
-                'data': None
+                'message': f"服务器内部错误: {str(e)}",
+                'data': None,
+                'debug': {
+                    'exception': str(e),
+                    'traceback': error_traceback.split('\n') if settings.DEBUG else None
+                }
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
