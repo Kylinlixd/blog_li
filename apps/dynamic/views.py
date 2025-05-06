@@ -39,6 +39,14 @@ class DynamicViewSet(ModelViewSet):
     queryset = Dynamic.objects.all()
     pagination_class = DynamicPagination
     permission_classes = [AllowAny]  # 允许所有用户访问
+    authentication_classes = []  # 不进行任何认证
+    
+    def dispatch(self, request, *args, **kwargs):
+        """重载dispatch方法，确保绕过认证"""
+        # 对于GET请求，我们跳过认证
+        if request.method.lower() == 'get':
+            self.authentication_classes = []
+        return super().dispatch(request, *args, **kwargs)
     
     def get_serializer_class(self):
         if self.action == 'create':

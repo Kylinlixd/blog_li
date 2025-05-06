@@ -8,6 +8,9 @@ from .serializers import (
     UserSerializer, UserLoginSerializer, UserRegisterSerializer,
     UserProfileSerializer, ChangePasswordSerializer, CustomTokenObtainPairSerializer
 )
+from datetime import timedelta
+from django.conf import settings
+from .models import TokenBlacklist
 
 User = get_user_model()
 
@@ -16,7 +19,7 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     
     def get_permissions(self):
-        if self.action in ['create', 'login', 'register']:
+        if self.action in ['create', 'login', 'register', 'logout']:
             return [AllowAny()]
         return [IsAuthenticated()]
     
@@ -167,6 +170,44 @@ class UserViewSet(viewsets.ModelViewSet):
             'code': 400,
             'message': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def logout(self, request):
+        # JWT是无状态的，真正的登出需要前端移除存储的token
+        
+        try:
+            # 获取Authorization头中的token
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+                
+                # 获取token的过期时间
+                expires_delta = getattr(settings, 'SIMPLE_JWT', {}).get(
+                    'ACCESS_TOKEN_LIFETIME', timedelta(minutes=15)
+                )
+                
+                # 将token加入黑名单
+                TokenBlacklist.add_token_to_blacklist(token, expires_delta)
+                print(f"用户登出，token已加入黑名单: {token[:10]}...")
+                
+                # 清理过期的token
+                deleted_count = TokenBlacklist.clean_expired_tokens()
+                if deleted_count and deleted_count[0] > 0:
+                    print(f"已清理 {deleted_count[0]} 个过期token")
+            
+            return Response({
+                'code': 200,
+                'message': '退出登录成功',
+                'data': None
+            })
+        except Exception as e:
+            print(f"登出异常: {str(e)}")
+            # 即使发生异常，仍然返回成功，因为主要是前端清除token
+            return Response({
+                'code': 200,
+                'message': '退出登录成功',
+                'data': None
+            })
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer

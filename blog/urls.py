@@ -44,6 +44,7 @@ urlpatterns = [
     # 认证相关
     path('api/auth/login/', UserViewSet.as_view({'post': 'login'}), name='login'),
     path('api/auth/register/', UserViewSet.as_view({'post': 'register'}), name='register'),
+    path('api/auth/logout/', UserViewSet.as_view({'post': 'logout'}), name='logout'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/info/', UserViewSet.as_view({'get': 'info'}), name='user-info'),
     path('api/auth/password/', UserViewSet.as_view({'put': 'password'}), name='change-password'),

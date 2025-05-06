@@ -16,8 +16,12 @@ def custom_exception_handler(exc, context):
     if response is not None:
         error_message = '请求处理失败'
         
+        # 处理401未授权错误
+        if response.status_code == 401:
+            error_message = '请先登录'
+        
         # 处理验证错误
-        if hasattr(exc, 'detail'):
+        elif hasattr(exc, 'detail'):
             # 处理non_field_errors，直接提取其中的错误信息
             if isinstance(exc.detail, dict) and 'non_field_errors' in exc.detail:
                 errors = exc.detail['non_field_errors']

@@ -6,6 +6,7 @@ from django.core.exceptions import PermissionDenied, ObjectDoesNotExist
 from django.db import IntegrityError
 from django.conf import settings
 import traceback
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
 
 class APIExceptionMiddleware(MiddlewareMixin):
@@ -24,9 +25,27 @@ class APIExceptionMiddleware(MiddlewareMixin):
         error_class = exception.__class__.__name__
         error_detail = str(exception)
         error_traceback = traceback.format_exc()
+        
+        # 处理JWT令牌相关异常
+        if isinstance(exception, (InvalidToken, TokenError)):
+            response_data = {
+                'code': status.HTTP_401_UNAUTHORIZED,
+                'message': '身份验证失败，请重新登录',
+                'data': None
+            }
+            
+            # 在DEBUG模式下，添加详细的错误信息
+            if settings.DEBUG:
+                response_data['debug'] = {
+                    'exception_class': error_class,
+                    'exception_detail': error_detail,
+                    'traceback': error_traceback.split('\n')
+                }
+                
+            return JsonResponse(response_data, status=status.HTTP_401_UNAUTHORIZED)
             
         # 根据异常类型返回不同的错误信息
-        if isinstance(exception, ObjectDoesNotExist):
+        elif isinstance(exception, ObjectDoesNotExist):
             response_data = {
                 'code': status.HTTP_404_NOT_FOUND,
                 'message': '请求的资源不存在',
