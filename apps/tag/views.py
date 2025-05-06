@@ -69,7 +69,7 @@ class TagViewSet(ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         # 检查是否有关联的动态
-        if hasattr(instance, 'dynamic_set') and instance.dynamic_set.exists():
+        if hasattr(instance, 'dynamics') and instance.dynamics.exists():
             return Response({
                 'code': 400,
                 'message': '该标签下有动态，不能删除'

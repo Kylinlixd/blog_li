@@ -112,9 +112,9 @@ class DynamicViewSet(ModelViewSet):
             serializer = self.get_serializer(instance)
             return Response({
                 'code': 200,
-                'message': '动态不存在或已被删除',
+                'message': '获取动态成功',
                 'data': serializer.data
-            }, status=status.HTTP_404_NOT_FOUND)
+            })
         except Exception as e:
             return Response({
                 'code': 404,
@@ -238,7 +238,7 @@ class CategoryDynamicsView(APIView):
     def get(self, request, categoryId):
         try:
             category = Category.objects.get(pk=categoryId)
-            dynamics = Dynamic.objects.filter(category=category).order_by('-create_time')
+            dynamics = Dynamic.objects.filter(category=category).order_by('-created_at')
             paginator = self.pagination_class()
             result = paginator.paginate_queryset(dynamics, request)
             serializer = DynamicSerializer(result, many=True)
@@ -254,7 +254,7 @@ class TagDynamicsView(APIView):
     def get(self, request, tagId):
         try:
             tag = Tag.objects.get(pk=tagId)
-            dynamics = Dynamic.objects.filter(tags=tag).order_by('-create_time')
+            dynamics = Dynamic.objects.filter(tags=tag).order_by('-created_at')
             paginator = self.pagination_class()
             result = paginator.paginate_queryset(dynamics, request)
             serializer = DynamicSerializer(result, many=True)

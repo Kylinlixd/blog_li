@@ -68,11 +68,16 @@ class CommentViewSet(ModelViewSet):
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'code': 200,
             'data': {
-                'list': serializer.data,
+                'items': serializer.data,
                 'total': queryset.count()
             },
             'message': '获取评论列表成功'
