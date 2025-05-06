@@ -28,9 +28,17 @@ class APIExceptionMiddleware(MiddlewareMixin):
         
         # 处理JWT令牌相关异常
         if isinstance(exception, (InvalidToken, TokenError)):
+            error_message = '身份验证失败，请重新登录'
+            
+            # 提供更具体的错误信息
+            if 'bad_authorization_header' in str(exception):
+                error_message = '认证格式错误，请确保使用"Bearer access_token"格式'
+            elif 'token_not_valid' in str(exception):
+                error_message = '令牌无效或已过期，请使用有效的访问令牌(access_token)'
+                
             response_data = {
                 'code': status.HTTP_401_UNAUTHORIZED,
-                'message': '身份验证失败，请重新登录',
+                'message': error_message,
                 'data': None
             }
             

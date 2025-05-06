@@ -19,6 +19,13 @@ def custom_exception_handler(exc, context):
         # 处理401未授权错误
         if response.status_code == 401:
             error_message = '请先登录'
+            
+            # 判断是否是JWT令牌格式错误
+            if hasattr(exc, 'detail') and isinstance(exc.detail, dict):
+                if 'code' in exc.detail and exc.detail.get('code') == 'bad_authorization_header':
+                    error_message = '认证格式错误，请确保使用"Bearer access_token"格式'
+                elif 'code' in exc.detail and exc.detail.get('code') == 'token_not_valid':
+                    error_message = '令牌无效或已过期，请使用有效的访问令牌(access_token)'
         
         # 处理验证错误
         elif hasattr(exc, 'detail'):
