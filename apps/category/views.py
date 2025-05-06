@@ -13,8 +13,14 @@ class CategoryViewSet(ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'list':
-            return []  # 根据前端要求，实际需要保持认证
+            return [AllowAny()]  # 允许所有用户访问列表
         return super().get_permissions()
+
+    def dispatch(self, request, *args, **kwargs):
+        """重载dispatch方法，对list请求跳过认证"""
+        if request.method.lower() == 'get' and self.action_map.get(request.method.lower()) == 'list':
+            self.authentication_classes = []
+        return super().dispatch(request, *args, **kwargs)
 
     def list(self, request, *args, **kwargs):
         # 只获取顶级分类（parent为null）
@@ -56,7 +62,7 @@ class CategoryViewSet(ModelViewSet):
                 'message': '该分类下有子分类，不能删除'
             })
         # 检查是否有关联的动态
-        if hasattr(instance, 'dynamic_set') and instance.dynamic_set.exists():
+        if hasattr(instance, 'dynamics') and instance.dynamics.exists():
             return Response({
                 'code': 400,
                 'message': '该分类下有动态，不能删除'

@@ -15,13 +15,19 @@ class TagViewSet(ModelViewSet):
     
     def get_permissions(self):
         if self.action == 'list':
-            return []  # 根据前端要求，实际需要保持认证
+            return [AllowAny()]  # 允许所有用户访问列表
         return super().get_permissions()
+    
+    def dispatch(self, request, *args, **kwargs):
+        """重载dispatch方法，对list请求跳过认证"""
+        if request.method.lower() == 'get' and self.action_map.get(request.method.lower()) == 'list':
+            self.authentication_classes = []
+        return super().dispatch(request, *args, **kwargs)
     
     def list(self, request, *args, **kwargs):
         # 添加动态计数
         queryset = self.filter_queryset(self.get_queryset()).annotate(
-            dynamic_count=Count('dynamic')
+            dynamic_count=Count('dynamics')
         )
         
         page = self.paginate_queryset(queryset)
