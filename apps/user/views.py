@@ -51,10 +51,19 @@ class UserViewSet(viewsets.ModelViewSet):
                             'message': '用户已被禁用',
                             'data': None
                         }, status=status.HTTP_403_FORBIDDEN)
+                    
+                    # 获取JWT令牌对
+                    token = CustomTokenObtainPairSerializer.get_token(user)
+                    refresh_token = str(token)
+                    access_token = str(token.access_token)
+                    
                     return Response({
                         'code': 200,
                         'data': {
-                            'token': str(CustomTokenObtainPairSerializer.get_token(user)),
+                            'token': {
+                                'access': access_token,
+                                'refresh': refresh_token
+                            },
                             'userInfo': UserSerializer(user).data
                         },
                         'message': '登录成功'
@@ -96,10 +105,19 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = UserRegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
+            
+            # 获取JWT令牌对
+            token = CustomTokenObtainPairSerializer.get_token(user)
+            refresh_token = str(token)
+            access_token = str(token.access_token)
+            
             return Response({
                 'code': 200,
                 'data': {
-                    'token': str(CustomTokenObtainPairSerializer.get_token(user)),
+                    'token': {
+                        'access': access_token,
+                        'refresh': refresh_token
+                    },
                     'userInfo': UserSerializer(user).data
                 },
                 'message': '注册成功'
