@@ -1,10 +1,11 @@
 from django.shortcuts import render
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
+from rest_framework import status
 from .models import Comment
 from .serializers import (
     CommentSerializer, CommentCreateSerializer,
@@ -31,6 +32,18 @@ class CommentPagination(PageNumberPagination):
 class CommentViewSet(ModelViewSet):
     queryset = Comment.objects.all()
     permission_classes = [IsAuthenticated]
+    pagination_class = CommentPagination
+    
+    def get_permissions(self):
+        if self.action == 'list':
+            return [AllowAny()]  # 允许所有用户访问列表
+        return super().get_permissions()
+    
+    def dispatch(self, request, *args, **kwargs):
+        """重载dispatch方法，对list请求跳过认证"""
+        if request.method.lower() == 'get' and self.action_map.get(request.method.lower()) == 'list':
+            self.authentication_classes = []
+        return super().dispatch(request, *args, **kwargs)
     
     def get_serializer_class(self):
         if self.action == 'create':
