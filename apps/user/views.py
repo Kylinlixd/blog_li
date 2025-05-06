@@ -31,6 +31,15 @@ class UserViewSet(viewsets.ModelViewSet):
             if serializer.is_valid():
                 username = serializer.validated_data['username']
                 password = serializer.validated_data['password']
+                
+                # 检查用户名和密码是否为空
+                if not username or not password:
+                    return Response({
+                        'code': 400,
+                        'message': '用户名和密码不能为空',
+                        'data': None
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
                 print(f"尝试认证用户: {username}")  # 打印用户名
                 user = authenticate(username=username, password=password)
                 if user:
@@ -57,9 +66,21 @@ class UserViewSet(viewsets.ModelViewSet):
                     'data': None
                 }, status=status.HTTP_401_UNAUTHORIZED)
             print(f"数据验证失败: {serializer.errors}")  # 打印验证错误
+            
+            # 处理验证错误
+            if serializer.errors:
+                # 获取第一个字段的第一个错误
+                field = next(iter(serializer.errors))
+                if isinstance(serializer.errors[field], list) and serializer.errors[field]:
+                    error_message = f"{field}字段错误: {serializer.errors[field][0]}"
+                else:
+                    error_message = f"{field}字段错误: {serializer.errors[field]}"
+            else:
+                error_message = '请求数据无效'
+                    
             return Response({
                 'code': 400,
-                'message': serializer.errors,
+                'message': error_message,
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
