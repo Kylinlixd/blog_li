@@ -213,7 +213,7 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Dynamic
-        fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags']
+        fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags', 'categoryId', 'mediaUrls', 'createdAt']
     
     def create(self, validated_data):
         validated_data['author'] = self.context['request'].user

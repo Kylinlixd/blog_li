@@ -38,8 +38,13 @@ class DynamicPagination(PageNumberPagination):
 class DynamicViewSet(ModelViewSet):
     queryset = Dynamic.objects.all()
     pagination_class = DynamicPagination
-    permission_classes = [AllowAny]  # 允许所有用户访问
+    permission_classes = [IsAuthenticated]  # 默认需要认证
     authentication_classes = []  # 不进行任何认证
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]  # 列表和详情允许所有用户访问
+        return super().get_permissions()
     
     def dispatch(self, request, *args, **kwargs):
         """重载dispatch方法，确保绕过认证"""

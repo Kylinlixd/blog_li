@@ -9,11 +9,12 @@ class TagSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Tag
-        fields = ['id', 'name', 'description', 'sort', 'dynamicCount', 'createdAt', 'updatedAt']
+        fields = ['id', 'name', 'description', 'sort', 'status', 'dynamicCount', 'createdAt', 'updatedAt']
         extra_kwargs = {
             'name': {'required': True, 'allow_blank': False},
             'description': {'required': False},
-            'sort': {'required': False}
+            'sort': {'required': False},
+            'status': {'required': False}
         } 
         
     def get_dynamicCount(self, obj):
@@ -25,7 +26,7 @@ class TagSerializer(serializers.ModelSerializer):
 class TagCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ['name']
+        fields = ['name', 'status']
     
     def validate_name(self, value):
         if Tag.objects.filter(name=value).exists():
@@ -35,7 +36,7 @@ class TagCreateSerializer(serializers.ModelSerializer):
 class TagUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ['name']
+        fields = ['name', 'status']
     
     def validate_name(self, value):
         if Tag.objects.filter(name=value).exclude(id=self.instance.id).exists():
