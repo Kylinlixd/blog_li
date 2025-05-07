@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from apps.category.models import Category
 from apps.tag.models import Tag
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 
 
 class DynamicPagination(PageNumberPagination):
@@ -39,7 +40,6 @@ class DynamicViewSet(ModelViewSet):
     queryset = Dynamic.objects.all()
     pagination_class = DynamicPagination
     permission_classes = [IsAuthenticated]  # 默认需要认证
-    authentication_classes = []  # 不进行任何认证
     
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
@@ -63,6 +63,10 @@ class DynamicViewSet(ModelViewSet):
         return DynamicSerializer
     
     def get_queryset(self):
+        # 如果是获取单个动态，直接返回所有动态
+        if self.action == 'retrieve':
+            return Dynamic.objects.all()
+            
         queryset = super().get_queryset()
         
         # 过滤条件
@@ -113,7 +117,21 @@ class DynamicViewSet(ModelViewSet):
     
     def retrieve(self, request, *args, **kwargs):
         try:
-            instance = self.get_object()
+            # 获取动态ID
+            pk = kwargs.get('pk')
+            print(f"尝试获取动态 ID: {pk}")
+            
+            # 直接从数据库查询
+            instance = Dynamic.objects.filter(id=pk).first()
+            if not instance:
+                print(f"动态不存在: ID={pk}")
+                return Response({
+                    'code': 404,
+                    'message': '动态不存在或已被删除',
+                    'data': None
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # 序列化数据
             serializer = self.get_serializer(instance)
             return Response({
                 'code': 200,
@@ -121,11 +139,12 @@ class DynamicViewSet(ModelViewSet):
                 'data': serializer.data
             })
         except Exception as e:
+            print(f"获取动态详情错误: {str(e)}")
             return Response({
-                'code': 404,
-                'message': '动态不存在或已被删除',
+                'code': 500,
+                'message': f'获取动态详情失败: {str(e)}',
                 'data': None
-            }, status=status.HTTP_404_NOT_FOUND)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})

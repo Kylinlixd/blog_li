@@ -216,8 +216,30 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
         fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags', 'categoryId', 'mediaUrls', 'createdAt']
     
     def create(self, validated_data):
-        validated_data['author'] = self.context['request'].user
-        return super().create(validated_data)
+        # 提取特殊字段
+        media_urls = validated_data.pop('mediaUrls', [])
+        category_id = validated_data.pop('categoryId', None)
+        tags = validated_data.pop('tags', [])
+        created_at = validated_data.pop('createdAt', None)
+        
+        # 创建动态实例
+        instance = Dynamic.objects.create(
+            author=self.context['request'].user,
+            media_urls=media_urls,
+            category_id=category_id,
+            **validated_data
+        )
+        
+        # 添加标签
+        if tags:
+            instance.tags.set(tags)
+            
+        # 设置创建时间（如果提供）
+        if created_at:
+            instance.created_at = created_at
+            instance.save()
+            
+        return instance
 
 
 class DynamicUpdateSerializer(serializers.ModelSerializer):
@@ -237,6 +259,6 @@ class DynamicListSerializer(serializers.ModelSerializer):
         model = Dynamic
         fields = [
             'id', 'content', 'type', 'status', 'media_urls',
-            'category', 'tags', 'view_count', 'created_at', 'updated_at',
+            'category', 'tags', 'view_count', 'createdAt', 'updatedAt',
             'author'
         ]
