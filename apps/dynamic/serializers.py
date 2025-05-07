@@ -37,8 +37,8 @@ class DynamicSerializer(serializers.ModelSerializer):
         model = Dynamic
         fields = [
             'id', 'content', 'type', 'status', 'media_urls',
-            'category', 'tags', 'view_count', 'created_at', 'updated_at',
-            'author'
+            'category', 'tags', 'view_count', 'createdAt', 'updatedAt',
+            'author', 'images', 'audio', 'video'
         ]
         read_only_fields = ['id', 'author', 'view_count', 'created_at', 'updated_at']
     
