@@ -226,7 +226,7 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
         instance = Dynamic.objects.create(
             author=self.context['request'].user,
             media_urls=media_urls,
-            category_id=category_id,
+            category_id=category_id,  # 直接使用 category_id
             **validated_data
         )
         
