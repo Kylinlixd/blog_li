@@ -72,14 +72,17 @@ class DynamicViewSet(ModelViewSet):
         # 过滤条件
         type = self.request.query_params.get('type')
         status = self.request.query_params.get('status')
+        content = self.request.query_params.get('content')
         
         if type:
             queryset = queryset.filter(type=type)
         if status:
             queryset = queryset.filter(status=status)
+        if content:
+            queryset = queryset.filter(content__icontains=content)  # 使用 icontains 进行模糊搜索
         
         # 排序
-        sort = self.request.query_params.get('params[sort]')
+        sort = self.request.query_params.get('sort') or self.request.query_params.get('params[sort]')
         if sort:
             field, order = sort.split(':')
             if field == 'createdAt':
