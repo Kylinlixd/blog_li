@@ -23,8 +23,7 @@ class CategoryViewSet(ModelViewSet):
         return super().dispatch(request, *args, **kwargs)
 
     def list(self, request, *args, **kwargs):
-        # 只获取顶级分类（parent为null）
-        queryset = Category.objects.filter(parent=None)
+        queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'code': 200,
@@ -55,12 +54,6 @@ class CategoryViewSet(ModelViewSet):
         
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        # 检查是否有子分类
-        if hasattr(instance, 'children') and instance.children.exists():
-            return Response({
-                'code': 400,
-                'message': '该分类下有子分类，不能删除'
-            })
         # 检查是否有关联的动态
         if hasattr(instance, 'dynamics') and instance.dynamics.exists():
             return Response({
@@ -81,8 +74,7 @@ class BlogCategoriesView(ViewSet):
     permission_classes = [AllowAny]
     
     def list(self, request):
-        # 只获取顶级分类（parent为null）
-        categories = Category.objects.filter(parent=None)
+        categories = Category.objects.all()
         serializer = CategorySerializer(categories, many=True)
         return Response({
             'code': 200,
