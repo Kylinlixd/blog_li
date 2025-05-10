@@ -222,8 +222,29 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),  # 访问令牌有效期改为1小时
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  # 刷新令牌有效期改为7天
+    'ROTATE_REFRESH_TOKENS': True,  # 每次刷新令牌时都生成新的刷新令牌
+    'BLACKLIST_AFTER_ROTATION': True,  # 刷新令牌后，将旧的刷新令牌加入黑名单
+    'UPDATE_LAST_LOGIN': True,  # 更新用户最后登录时间
+    
+    'ALGORITHM': 'HS256',  # 加密算法
+    'SIGNING_KEY': SECRET_KEY,  # 签名密钥
+    'VERIFYING_KEY': None,  # 验证密钥
+    
+    'AUTH_HEADER_TYPES': ('Bearer',),  # 认证头类型
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',  # 认证头名称
+    'USER_ID_FIELD': 'id',  # 用户ID字段
+    'USER_ID_CLAIM': 'user_id',  # 用户ID声明
+    
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),  # 令牌类
+    'TOKEN_TYPE_CLAIM': 'token_type',  # 令牌类型声明
+    
+    'JTI_CLAIM': 'jti',  # JWT ID声明
+    
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',  # 滑动令牌刷新过期声明
+    'SLIDING_TOKEN_LIFETIME': timedelta(hours=1),  # 滑动令牌生命周期
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=7),  # 滑动令牌刷新生命周期
 }
 
 
