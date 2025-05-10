@@ -26,7 +26,7 @@ from apps.dynamic.views import DynamicViewSet, HotDynamicsView, RecentDynamicsVi
 from apps.category.views import CategoryViewSet, BlogCategoriesView
 from apps.tag.views import TagViewSet
 from apps.comment.views import CommentViewSet
-from apps.upload.views import FileUploadView
+from apps.upload.views import FileUploadView, AvatarUploadView
 from apps.dashboard.views import StatsView
 
 # 创建路由器
@@ -56,7 +56,7 @@ urlpatterns = [
     path('blog/categories/', BlogCategoriesView.as_view({'get': 'list'}), name='blog-categories'),
     
     # 文件上传API
-    path('api/upload/file/', FileUploadView.as_view(), name='file-upload'),
+    path('api/upload/', include('apps.upload.urls')),
     
     # 仪表盘统计API
     path('api/stats/', StatsView.as_view(), name='stats'),
