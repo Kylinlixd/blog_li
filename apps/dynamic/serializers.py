@@ -3,6 +3,7 @@ from .models import Dynamic
 from apps.user.serializers import UserSerializer
 from apps.category.serializers import CategorySerializer
 from apps.tag.serializers import TagSerializer
+from apps.upload.serializers import UploadFileSerializer
 import json
 
 
@@ -27,9 +28,7 @@ class DynamicSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
-    images = serializers.SerializerMethodField()
-    audio = serializers.SerializerMethodField()
-    video = serializers.SerializerMethodField()
+    files = UploadFileSerializer(many=True, read_only=True)
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     
@@ -38,7 +37,7 @@ class DynamicSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'content', 'type', 'status', 'media_urls',
             'category', 'tags', 'view_count', 'createdAt', 'updatedAt',
-            'author', 'images', 'audio', 'video'
+            'author', 'files'
         ]
         read_only_fields = ['id', 'author', 'view_count', 'created_at', 'updated_at']
     
@@ -192,6 +191,7 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
       "content": "动态内容",
       "status": "draft/published",
       "mediaUrls": ["url1", "url2", ...],
+      "fileIds": [1, 2, 3],  // 文件ID数组
       "categoryId": 1,  // 分类ID
       "tags": [1, 2, 3], // 标签ID数组
       "author": "作者信息",
@@ -200,6 +200,11 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
     """
     mediaUrls = serializers.ListField(
         child=serializers.CharField(),
+        required=False,
+        write_only=True
+    )
+    fileIds = serializers.ListField(
+        child=serializers.IntegerField(),
         required=False,
         write_only=True
     )
@@ -213,11 +218,13 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Dynamic
-        fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags', 'categoryId', 'mediaUrls', 'createdAt']
+        fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags', 
+                 'categoryId', 'mediaUrls', 'fileIds', 'createdAt']
     
     def create(self, validated_data):
         # 提取特殊字段
         media_urls = validated_data.pop('mediaUrls', [])
+        file_ids = validated_data.pop('fileIds', [])
         category_id = validated_data.pop('categoryId', None)
         tags = validated_data.pop('tags', [])
         created_at = validated_data.pop('createdAt', None)
@@ -226,9 +233,13 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
         instance = Dynamic.objects.create(
             author=self.context['request'].user,
             media_urls=media_urls,
-            category_id=category_id,  # 直接使用 category_id
+            category_id=category_id,
             **validated_data
         )
+        
+        # 添加文件关联
+        if file_ids:
+            instance.files.set(file_ids)
         
         # 添加标签
         if tags:

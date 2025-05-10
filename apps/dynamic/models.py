@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from apps.category.models import Category
 from apps.tag.models import Tag
+from apps.upload.models import UploadFile
 import json
 
 User = get_user_model()
@@ -24,6 +25,7 @@ class Dynamic(models.Model):
     type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='text')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
     media_urls = models.JSONField(default=list, blank=True, help_text="媒体文件URL数组")
+    files = models.ManyToManyField(UploadFile, related_name='dynamics', blank=True, help_text="关联的文件")
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='dynamics')
     tags = models.ManyToManyField(Tag, related_name='dynamics', blank=True)
     view_count = models.PositiveIntegerField(default=0)

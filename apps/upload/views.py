@@ -172,72 +172,70 @@ class FileUploadView(APIView):
         try:
             logger.info(f"开始处理文件上传请求: {request.FILES}")
             
-            serializer = FileUploadSerializer(data=request.data)
-            if serializer.is_valid():
-                file = request.FILES['file']
-                file_type = serializer.validated_data['file_type']
-                
-                logger.info(f"上传文件信息: 类型={file_type}, 大小={file.size}, 名称={file.name}")
-                
-                # 验证文件类型
-                is_valid, error_message = validate_file_type(file, file_type)
-                if not is_valid:
-                    logger.warning(f"文件类型验证失败: {error_message}")
-                    return Response({
-                        'code': 400,
-                        'message': error_message
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                # 验证文件大小
-                is_valid, error_message = validate_file_size(file, file_type)
-                if not is_valid:
-                    logger.warning(f"文件大小验证失败: {error_message}")
-                    return Response({
-                        'code': 400,
-                        'message': error_message
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                # 生成唯一文件名
-                file_ext = os.path.splitext(file.name)[1]
-                file_name = f"{uuid.uuid4()}{file_ext}"
-                
-                # 构建文件保存路径
-                upload_dir = os.path.join(settings.MEDIA_ROOT, file_type)
-                os.makedirs(upload_dir, exist_ok=True)
-                file_path = os.path.join(upload_dir, file_name)
-                
-                logger.info(f"保存文件到: {file_path}")
-                
-                # 保存文件
-                with open(file_path, 'wb+') as destination:
-                    for chunk in file.chunks():
-                        destination.write(chunk)
-                
-                # 构建文件URL
-                file_url = f"{settings.MEDIA_URL}{file_type}/{file_name}"
-                
-                # 保存文件信息到数据库
-                upload_file = UploadFile.objects.create(
-                    name=file.name,
-                    file_type=file_type,
-                    file_size=file.size,
-                    file_url=file_url,
-                    uploader=request.user
-                )
-                
-                logger.info(f"文件上传成功: {file_url}")
-                
+            if 'file' not in request.FILES:
                 return Response({
-                    'code': 200,
-                    'data': UploadFileSerializer(upload_file).data,
-                    'message': '文件上传成功'
-                })
+                    'code': 400,
+                    'message': '未提供文件'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
-            logger.warning(f"数据验证失败: {serializer.errors}")
+            file = request.FILES['file']
+            file_type = request.data.get('file_type', 'other')
+            
+            logger.info(f"上传文件信息: 类型={file_type}, 大小={file.size}, 名称={file.name}")
+            
+            # 验证文件类型
+            is_valid, error_message = validate_file_type(file, file_type)
+            if not is_valid:
+                logger.warning(f"文件类型验证失败: {error_message}")
+                return Response({
+                    'code': 400,
+                    'message': error_message
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 验证文件大小
+            is_valid, error_message = validate_file_size(file, file_type)
+            if not is_valid:
+                logger.warning(f"文件大小验证失败: {error_message}")
+                return Response({
+                    'code': 400,
+                    'message': error_message
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # 生成唯一文件名
+            file_ext = os.path.splitext(file.name)[1]
+            file_name = f"{uuid.uuid4()}{file_ext}"
+            
+            # 构建文件保存路径
+            upload_dir = os.path.join(settings.MEDIA_ROOT, file_type)
+            os.makedirs(upload_dir, exist_ok=True)
+            file_path = os.path.join(upload_dir, file_name)
+            
+            logger.info(f"保存文件到: {file_path}")
+            
+            # 保存文件
+            with open(file_path, 'wb+') as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+            
+            # 构建文件URL
+            file_url = f"{settings.MEDIA_URL}{file_type}/{file_name}"
+            
+            # 保存文件信息到数据库
+            upload_file = UploadFile.objects.create(
+                name=file.name,
+                file_type=file_type,
+                file_size=file.size,
+                file_url=file_url,
+                uploader=request.user
+            )
+            
+            logger.info(f"文件上传成功: {file_url}")
+            
             return Response({
-                'code': 400,
-                'message': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+                'code': 200,
+                'data': UploadFileSerializer(upload_file).data,
+                'message': '文件上传成功'
+            })
             
         except Exception as e:
             logger.error(f"文件上传失败: {str(e)}", exc_info=True)
