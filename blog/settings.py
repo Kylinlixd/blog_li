@@ -304,3 +304,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # 媒体文件配置
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# 开发环境下提供媒体文件服务
+if DEBUG:
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+else:
+    # 生产环境建议使用 Nginx 等服务器来提供媒体文件服务
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

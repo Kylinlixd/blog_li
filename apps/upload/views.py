@@ -136,18 +136,70 @@ class FileManagementViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = super().get_queryset()
-        user = self.request.user
+        queryset = UploadFile.objects.all()
         
-        # 如果是管理员，可以看到所有文件
-        if user.is_staff:
-            return queryset
-        
-        # 普通用户只能看到自己的文件和公开文件
-        return queryset.filter(Q(uploader=user) | Q(is_public=True))
+        # 按类型过滤
+        file_type = self.request.query_params.get('type')
+        if file_type:
+            queryset = queryset.filter(file_type=file_type)
+            
+        # 按分类过滤
+        category_id = self.request.query_params.get('category')
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+            
+        # 按标签过滤
+        tag_ids = self.request.query_params.getlist('tags')
+        if tag_ids:
+            queryset = queryset.filter(tags__id__in=tag_ids).distinct()
+            
+        # 按上传者过滤
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(uploader=self.request.user)
+            
+        return queryset.order_by('-created_at')
     
     def perform_create(self, serializer):
         serializer.save(uploader=self.request.user)
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # 检查权限
+        if not request.user.is_staff and instance.uploader != request.user:
+            return Response(
+                {"detail": "您没有权限删除此文件"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            # 获取文件路径
+            file_path = os.path.join(settings.MEDIA_ROOT, instance.file_url.replace(settings.MEDIA_URL, ''))
+            
+            # 删除数据库记录
+            self.perform_destroy(instance)
+            
+            # 删除真实文件
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except OSError as e:
+                    logger.warning(f"删除物理文件失败: {str(e)}")
+                    # 继续执行，因为数据库记录已经删除
+                
+            return Response({
+                "code": 200,
+                "message": "文件删除成功",
+                "data": None
+            })
+            
+        except Exception as e:
+            logger.error(f"删除文件失败: {str(e)}")
+            return Response({
+                "code": 500,
+                "message": "文件删除失败，请稍后重试",
+                "data": None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
     def download(self, request, pk=None):

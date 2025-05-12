@@ -62,6 +62,6 @@ urlpatterns = [
     path('api/stats/', StatsView.as_view(), name='stats'),
 ]
 
-# 添加媒体文件URL
+# 开发环境下提供媒体文件服务
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
