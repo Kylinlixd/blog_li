@@ -24,81 +24,48 @@ class VideoSerializer(serializers.Serializer):
     duration = serializers.IntegerField(required=False)
 
 
+class MediaFileSerializer(serializers.ModelSerializer):
+    url = serializers.CharField(source='file_url')  # 兼容性字段
+    size = serializers.IntegerField(source='file_size')
+    
+    class Meta:
+        model = 'upload.UploadFile'
+        fields = ['id', 'name', 'file_type', 'file_url', 'url', 'size', 'created_at']
+
+
 class DynamicSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
-    files = UploadFileSerializer(many=True, read_only=True)
+    mediaUrls = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     
     class Meta:
         model = Dynamic
         fields = [
-            'id', 'content', 'type', 'status', 'media_urls',
+            'id', 'content', 'type', 'status', 'mediaUrls',
             'category', 'tags', 'view_count', 'createdAt', 'updatedAt',
-            'author', 'files'
+            'author'
         ]
         read_only_fields = ['id', 'author', 'view_count', 'created_at', 'updated_at']
     
-    def get_images(self, obj):
-        if obj.type != 'image' or not obj.images_data:
+    def get_mediaUrls(self, obj):
+        # 获取关联的文件
+        files = obj.files.all()
+        if not files:
             return []
-        return obj.images
-    
-    def get_audio(self, obj):
-        if obj.type != 'audio' or not obj.audio_data:
-            return None
-        return obj.audio
-    
-    def get_video(self, obj):
-        if obj.type != 'video' or not obj.video_data:
-            return None
-        return obj.video
-    
-    def create(self, validated_data):
-        request = self.context.get('request')
-        images = request.data.get('images', [])
-        audio = request.data.get('audio', None)
-        video = request.data.get('video', None)
-        
-        instance = Dynamic.objects.create(
-            author=request.user,
-            **validated_data
-        )
-        
-        if images and instance.type == 'image':
-            instance.images_data = json.dumps(images)
-        
-        if audio and instance.type == 'audio':
-            instance.audio_data = json.dumps(audio)
-        
-        if video and instance.type == 'video':
-            instance.video_data = json.dumps(video)
-        
-        instance.save()
-        return instance
-    
-    def update(self, instance, validated_data):
-        request = self.context.get('request')
-        images = request.data.get('images', None)
-        audio = request.data.get('audio', None)
-        video = request.data.get('video', None)
-        
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        
-        if images is not None and instance.type == 'image':
-            instance.images_data = json.dumps(images)
-        
-        if audio is not None and instance.type == 'audio':
-            instance.audio_data = json.dumps(audio)
-        
-        if video is not None and instance.type == 'video':
-            instance.video_data = json.dumps(video)
-        
-        instance.save()
-        return instance
+            
+        # 根据动态类型过滤文件
+        if obj.type == 'image':
+            files = files.filter(file_type='image')
+        elif obj.type == 'audio':
+            files = files.filter(file_type='audio')
+        elif obj.type == 'video':
+            files = files.filter(file_type='video')
+            
+        # 直接返回文件URL列表
+        return [{'url': file.file_url, 'type': file.file_type} for file in files]
 
 
 class AdjacentDynamicSerializer(serializers.Serializer):
@@ -259,17 +226,9 @@ class DynamicUpdateSerializer(serializers.ModelSerializer):
         fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags']
 
 
-class DynamicListSerializer(serializers.ModelSerializer):
-    author = UserSerializer(read_only=True)
-    category = CategorySerializer(read_only=True)
-    tags = TagSerializer(many=True, read_only=True)
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+class DynamicListSerializer(serializers.Serializer):
+    items = DynamicSerializer(many=True)
+    total = serializers.IntegerField()
     
     class Meta:
-        model = Dynamic
-        fields = [
-            'id', 'content', 'type', 'status', 'media_urls',
-            'category', 'tags', 'view_count', 'createdAt', 'updatedAt',
-            'author'
-        ]
+        fields = ['items', 'total']

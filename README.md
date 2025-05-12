@@ -649,4 +649,341 @@
   ```
 - 详细字段和参数请参考各模块序列化器（serializers.py）定义。
 
-如需补充具体请求/响应示例或参数说明，请告知！ 
+如需补充具体请求/响应示例或参数说明，请告知！
+
+# 博客系统 API 文档
+
+## 文件管理模块
+
+### 1. 文件上传
+
+**请求地址**：`/api/upload/upload/`
+
+**请求方法**：`POST`
+
+**请求头**：
+```
+Content-Type: multipart/form-data
+Authorization: Token <your_token>
+```
+
+**请求参数**：
+```json
+{
+    "file": "文件对象",
+    "file_type": "文件类型(image/video/audio/document/other)",
+    "dynamic_id": "动态ID（可选）",
+    "category_id": "分类ID（可选）",
+    "tag_ids": ["标签ID数组（可选）"],
+    "description": "文件描述（可选）",
+    "is_public": "是否公开（可选，默认true）"
+}
+```
+
+**响应数据**：
+```json
+{
+    "code": 200,
+    "data": {
+        "id": "文件ID",
+        "name": "文件名",
+        "file_type": "文件类型",
+        "file_size": "文件大小",
+        "file_url": "文件URL",
+        "category": {
+            "id": "分类ID",
+            "name": "分类名称",
+            "description": "分类描述",
+            "sort": "排序",
+            "status": "状态",
+            "created_at": "创建时间",
+            "updated_at": "更新时间"
+        },
+        "tags": [
+            {
+                "id": "标签ID",
+                "name": "标签名称",
+                "description": "标签描述",
+                "sort": "排序",
+                "status": "状态",
+                "created_at": "创建时间",
+                "updated_at": "更新时间"
+            }
+        ],
+        "uploader": {
+            "id": "上传者ID",
+            "username": "用户名",
+            "nickname": "昵称",
+            "avatar": "头像URL"
+        },
+        "description": "文件描述",
+        "is_public": "是否公开",
+        "download_count": "下载次数",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+    },
+    "message": "文件上传成功"
+}
+```
+
+### 2. 文件列表
+
+**请求地址**：`/api/upload/files/`
+
+**请求方法**：`GET`
+
+**请求头**：
+```
+Authorization: Token <your_token>
+```
+
+**请求参数**：
+```
+page: 页码（可选，默认1）
+pageSize: 每页数量（可选，默认10）
+```
+
+**响应数据**：
+```json
+{
+    "code": 200,
+    "data": {
+        "items": [
+            {
+                "id": "文件ID",
+                "name": "文件名",
+                "file_type": "文件类型",
+                "file_size": "文件大小",
+                "file_url": "文件URL",
+                "category": {
+                    "id": "分类ID",
+                    "name": "分类名称",
+                    "description": "分类描述",
+                    "sort": "排序",
+                    "status": "状态",
+                    "created_at": "创建时间",
+                    "updated_at": "更新时间"
+                },
+                "tags": [
+                    {
+                        "id": "标签ID",
+                        "name": "标签名称",
+                        "description": "标签描述",
+                        "sort": "排序",
+                        "status": "状态",
+                        "created_at": "创建时间",
+                        "updated_at": "更新时间"
+                    }
+                ],
+                "uploader": {
+                    "id": "上传者ID",
+                    "username": "用户名",
+                    "nickname": "昵称",
+                    "avatar": "头像URL"
+                },
+                "description": "文件描述",
+                "is_public": "是否公开",
+                "download_count": "下载次数",
+                "created_at": "创建时间",
+                "updated_at": "更新时间"
+            }
+        ],
+        "total": "总数"
+    },
+    "message": "获取成功"
+}
+```
+
+### 3. 文件搜索
+
+**请求地址**：`/api/upload/files/search/`
+
+**请求方法**：`GET`
+
+**请求头**：
+```
+Authorization: Token <your_token>
+```
+
+**请求参数**：
+```
+q: 搜索关键词（可选）
+type: 文件类型（可选）
+category: 分类ID（可选）
+tags: 标签ID数组（可选）
+page: 页码（可选，默认1）
+pageSize: 每页数量（可选，默认10）
+```
+
+**响应数据**：同文件列表
+
+### 4. 文件下载
+
+**请求地址**：`/api/upload/files/{file_id}/download/`
+
+**请求方法**：`POST`
+
+**请求头**：
+```
+Authorization: Token <your_token>
+```
+
+**响应数据**：文件流
+
+### 5. 分类管理
+
+#### 5.1 获取分类列表
+
+**请求地址**：`/api/upload/categories/`
+
+**请求方法**：`GET`
+
+**请求头**：
+```
+Authorization: Token <your_token>
+```
+
+**响应数据**：
+```json
+{
+    "code": 200,
+    "data": [
+        {
+            "id": "分类ID",
+            "name": "分类名称",
+            "description": "分类描述",
+            "sort": "排序",
+            "status": "状态",
+            "created_at": "创建时间",
+            "updated_at": "更新时间"
+        }
+    ],
+    "message": "获取成功"
+}
+```
+
+#### 5.2 创建分类
+
+**请求地址**：`/api/upload/categories/`
+
+**请求方法**：`POST`
+
+**请求头**：
+```
+Content-Type: application/json
+Authorization: Token <your_token>
+```
+
+**请求参数**：
+```json
+{
+    "name": "分类名称",
+    "description": "分类描述（可选）",
+    "sort": "排序（可选，默认0）",
+    "status": "状态（可选，默认true）"
+}
+```
+
+**响应数据**：
+```json
+{
+    "code": 200,
+    "data": {
+        "id": "分类ID",
+        "name": "分类名称",
+        "description": "分类描述",
+        "sort": "排序",
+        "status": "状态",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+    },
+    "message": "创建成功"
+}
+```
+
+### 6. 标签管理
+
+#### 6.1 获取标签列表
+
+**请求地址**：`/api/upload/tags/`
+
+**请求方法**：`GET`
+
+**请求头**：
+```
+Authorization: Token <your_token>
+```
+
+**响应数据**：
+```json
+{
+    "code": 200,
+    "data": [
+        {
+            "id": "标签ID",
+            "name": "标签名称",
+            "description": "标签描述",
+            "sort": "排序",
+            "status": "状态",
+            "created_at": "创建时间",
+            "updated_at": "更新时间"
+        }
+    ],
+    "message": "获取成功"
+}
+```
+
+#### 6.2 创建标签
+
+**请求地址**：`/api/upload/tags/`
+
+**请求方法**：`POST`
+
+**请求头**：
+```
+Content-Type: application/json
+Authorization: Token <your_token>
+```
+
+**请求参数**：
+```json
+{
+    "name": "标签名称",
+    "description": "标签描述（可选）",
+    "sort": "排序（可选，默认0）",
+    "status": "状态（可选，默认true）"
+}
+```
+
+**响应数据**：
+```json
+{
+    "code": 200,
+    "data": {
+        "id": "标签ID",
+        "name": "标签名称",
+        "description": "标签描述",
+        "sort": "排序",
+        "status": "状态",
+        "created_at": "创建时间",
+        "updated_at": "更新时间"
+    },
+    "message": "创建成功"
+}
+```
+
+### 7. 文件类型限制
+
+- 图片：支持 jpg、jpeg、png、gif 格式，大小限制 5MB
+- 视频：支持 mp4、mov、avi 格式，大小限制 100MB
+- 音频：支持 mp3、wav 格式，大小限制 20MB
+- 文档：支持 pdf、doc、docx、xls、xlsx 格式，大小限制 10MB
+- 其他：大小限制 10MB
+
+### 8. 权限说明
+
+- 所有接口都需要登录认证
+- 普通用户只能看到自己的文件和公开文件
+- 管理员可以看到所有文件
+- 文件上传者可以修改和删除自己的文件
+- 管理员可以修改和删除所有文件 

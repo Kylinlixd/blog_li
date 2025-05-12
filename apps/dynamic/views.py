@@ -17,6 +17,8 @@ from django.shortcuts import get_object_or_404
 from apps.category.models import Category
 from apps.tag.models import Tag
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from django.conf import settings
+import os
 
 
 class DynamicPagination(PageNumberPagination):
@@ -31,7 +33,7 @@ class DynamicPagination(PageNumberPagination):
             'message': 'success',
             'data': {
                 'total': self.page.paginator.count,
-                'list' if self.request.path.startswith('/blog') else 'items': data
+                'items': data
             }
         })
 
@@ -98,10 +100,10 @@ class DynamicViewSet(ModelViewSet):
             queryset = self.get_queryset()
             page = self.paginate_queryset(queryset)
             if page is not None:
-                serializer = self.get_serializer(page, many=True)
+                serializer = DynamicSerializer(page, many=True)
                 return self.get_paginated_response(serializer.data)
             
-            serializer = self.get_serializer(queryset, many=True)
+            serializer = DynamicSerializer(queryset, many=True)
             return Response({
                 'code': 200,
                 'message': 'success',
@@ -288,3 +290,54 @@ class TagDynamicsView(APIView):
             return paginator.get_paginated_response(serializer.data)
         except Tag.DoesNotExist:
             return Response({'code': 404, 'message': '标签不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class DynamicListView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # 获取查询参数
+            page = int(request.GET.get('page', 1))
+            page_size = int(request.GET.get('page_size', 10))
+            dynamic_type = request.GET.get('type')
+            status = request.GET.get('status')
+            
+            # 构建查询
+            queryset = Dynamic.objects.all()
+            
+            # 根据类型过滤
+            if dynamic_type:
+                queryset = queryset.filter(type=dynamic_type)
+            
+            # 根据状态过滤
+            if status:
+                queryset = queryset.filter(status=status)
+            
+            # 分页
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            # 获取总数
+            total = queryset.count()
+            
+            # 获取当前页数据
+            dynamics = queryset[start:end]
+            
+            # 序列化数据
+            data = {
+                'items': DynamicSerializer(dynamics, many=True).data,
+                'total': total
+            }
+            
+            return Response({
+                'code': 200,
+                'data': data,
+                'message': 'success'
+            })
+            
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'message': f'获取动态列表失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

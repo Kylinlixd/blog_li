@@ -4,13 +4,21 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.decorators import action
+from django.db.models import Q
+from django.http import FileResponse
 import os
 import uuid
 import mimetypes
 import logging
 from django.conf import settings
-from .models import UploadFile
-from .serializers import UploadFileSerializer, FileUploadSerializer
+from .models import UploadFile, FileCategory, FileTag
+from .serializers import (
+    UploadFileSerializer, FileUploadSerializer,
+    FileCategorySerializer, FileTagSerializer,
+    FileListSerializer
+)
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
@@ -99,6 +107,118 @@ def validate_file_size(file, file_type):
         logger.error(f"验证文件大小时出错: {str(e)}")
         return False, f"验证文件大小时出错: {str(e)}"
 
+class FileCategoryViewSet(ModelViewSet):
+    """文件分类视图集"""
+    queryset = FileCategory.objects.all()
+    serializer_class = FileCategorySerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # 只返回启用状态的分类
+        return queryset.filter(status=True)
+
+class FileTagViewSet(ModelViewSet):
+    """文件标签视图集"""
+    queryset = FileTag.objects.all()
+    serializer_class = FileTagSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # 只返回启用状态的标签
+        return queryset.filter(status=True)
+
+class FileManagementViewSet(ModelViewSet):
+    """文件管理视图集"""
+    queryset = UploadFile.objects.all()
+    serializer_class = UploadFileSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # 如果是管理员，可以看到所有文件
+        if user.is_staff:
+            return queryset
+        
+        # 普通用户只能看到自己的文件和公开文件
+        return queryset.filter(Q(uploader=user) | Q(is_public=True))
+    
+    def perform_create(self, serializer):
+        serializer.save(uploader=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def download(self, request, pk=None):
+        """下载文件"""
+        file_obj = self.get_object()
+        
+        # 增加下载次数
+        file_obj.increase_download_count()
+        
+        # 获取文件路径
+        file_path = os.path.join(settings.MEDIA_ROOT, file_obj.file_url.replace(settings.MEDIA_URL, ''))
+        
+        if not os.path.exists(file_path):
+            return Response({
+                'code': 404,
+                'message': '文件不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # 获取文件类型
+        content_type, _ = mimetypes.guess_type(file_path)
+        
+        # 打开文件
+        file = open(file_path, 'rb')
+        response = FileResponse(file)
+        response['Content-Type'] = content_type
+        response['Content-Disposition'] = f'attachment; filename="{file_obj.name}"'
+        
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        """搜索文件"""
+        query = request.query_params.get('q', '')
+        file_type = request.query_params.get('type')
+        category_id = request.query_params.get('category')
+        tag_ids = request.query_params.getlist('tags')
+        
+        queryset = self.get_queryset()
+        
+        # 搜索条件
+        if query:
+            queryset = queryset.filter(
+                Q(name__icontains=query) |
+                Q(description__icontains=query)
+            )
+        
+        if file_type:
+            queryset = queryset.filter(file_type=file_type)
+            
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+            
+        if tag_ids:
+            queryset = queryset.filter(tags__id__in=tag_ids).distinct()
+        
+        # 分页
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'code': 200,
+            'data': {
+                'items': serializer.data,
+                'total': queryset.count()
+            },
+            'message': '搜索成功'
+        })
+
 # Create your views here.
 class AvatarUploadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -180,6 +300,11 @@ class FileUploadView(APIView):
             
             file = request.FILES['file']
             file_type = request.data.get('file_type', 'other')
+            dynamic_id = request.data.get('dynamic_id')
+            category_id = request.data.get('category_id')
+            tag_ids = request.data.getlist('tag_ids')
+            description = request.data.get('description', '')
+            is_public = request.data.get('is_public', True)
             
             logger.info(f"上传文件信息: 类型={file_type}, 大小={file.size}, 名称={file.name}")
             
@@ -226,8 +351,27 @@ class FileUploadView(APIView):
                 file_type=file_type,
                 file_size=file.size,
                 file_url=file_url,
-                uploader=request.user
+                uploader=request.user,
+                category_id=category_id,
+                description=description,
+                is_public=is_public
             )
+            
+            # 添加标签
+            if tag_ids:
+                upload_file.tags.set(tag_ids)
+            
+            # 如果提供了动态ID，则关联到动态
+            if dynamic_id:
+                try:
+                    from apps.dynamic.models import Dynamic
+                    dynamic = Dynamic.objects.get(id=dynamic_id)
+                    dynamic.files.add(upload_file)
+                    logger.info(f"文件已关联到动态: {dynamic_id}")
+                except Dynamic.DoesNotExist:
+                    logger.warning(f"动态不存在: {dynamic_id}")
+                except Exception as e:
+                    logger.error(f"关联文件到动态时出错: {str(e)}")
             
             logger.info(f"文件上传成功: {file_url}")
             
