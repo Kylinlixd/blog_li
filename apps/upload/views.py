@@ -143,16 +143,6 @@ class FileManagementViewSet(ModelViewSet):
         if file_type:
             queryset = queryset.filter(file_type=file_type)
             
-        # 按分类过滤
-        category_id = self.request.query_params.get('category')
-        if category_id:
-            queryset = queryset.filter(category_id=category_id)
-            
-        # 按标签过滤
-        tag_ids = self.request.query_params.getlist('tags')
-        if tag_ids:
-            queryset = queryset.filter(tags__id__in=tag_ids).distinct()
-            
         # 按上传者过滤
         if not self.request.user.is_staff:
             queryset = queryset.filter(uploader=self.request.user)

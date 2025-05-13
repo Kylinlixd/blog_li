@@ -16,52 +16,15 @@ class FileTagSerializer(serializers.ModelSerializer):
 
 class UploadFileSerializer(serializers.ModelSerializer):
     uploader = UserSerializer(read_only=True)
-    category = FileCategorySerializer(read_only=True)
-    tags = FileTagSerializer(many=True, read_only=True)
-    category_id = serializers.IntegerField(write_only=True, required=False)
-    tag_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        write_only=True,
-        required=False
-    )
     
     class Meta:
         model = UploadFile
         fields = [
             'id', 'name', 'file_type', 'file_size', 'file_url',
-            'category', 'category_id', 'tags', 'tag_ids',
             'uploader', 'description', 'is_public', 'download_count',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'uploader', 'download_count', 'created_at', 'updated_at']
-    
-    def create(self, validated_data):
-        category_id = validated_data.pop('category_id', None)
-        tag_ids = validated_data.pop('tag_ids', [])
-        
-        instance = super().create(validated_data)
-        
-        if category_id:
-            instance.category_id = category_id
-        
-        if tag_ids:
-            instance.tags.set(tag_ids)
-            
-        return instance
-    
-    def update(self, instance, validated_data):
-        category_id = validated_data.pop('category_id', None)
-        tag_ids = validated_data.pop('tag_ids', None)
-        
-        instance = super().update(instance, validated_data)
-        
-        if category_id is not None:
-            instance.category_id = category_id
-            
-        if tag_ids is not None:
-            instance.tags.set(tag_ids)
-            
-        return instance
+        read_only_fields = ['id', 'file_url', 'file_size', 'download_count', 'created_at', 'updated_at']
 
 class FileListSerializer(serializers.Serializer):
     items = UploadFileSerializer(many=True)
