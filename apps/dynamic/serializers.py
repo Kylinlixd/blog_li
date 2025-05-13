@@ -5,6 +5,9 @@ from apps.category.serializers import CategorySerializer
 from apps.tag.serializers import TagSerializer
 from apps.upload.serializers import UploadFileSerializer
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ImageSerializer(serializers.Serializer):
@@ -53,7 +56,10 @@ class DynamicSerializer(serializers.ModelSerializer):
     def get_mediaUrls(self, obj):
         # 获取关联的文件
         files = obj.files.all()
+        logger.debug(f"动态 {obj.id} 的关联文件数量: {files.count()}")
+        
         if not files:
+            logger.debug(f"动态 {obj.id} 没有关联文件")
             return []
             
         # 根据动态类型过滤文件
@@ -64,8 +70,19 @@ class DynamicSerializer(serializers.ModelSerializer):
         elif obj.type == 'video':
             files = files.filter(file_type='video')
             
-        # 直接返回文件URL列表
-        return [{'url': file.file_url, 'type': file.file_type} for file in files]
+        logger.debug(f"动态 {obj.id} 过滤后的文件数量: {files.count()}")
+        logger.debug(f"动态类型: {obj.type}")
+        
+        # 返回文件信息列表
+        result = [{
+            'url': file.file_url,
+            'type': file.file_type,
+            'name': file.name,
+            'size': file.file_size
+        } for file in files]
+        
+        logger.debug(f"返回的文件信息: {result}")
+        return result
 
 
 class AdjacentDynamicSerializer(serializers.Serializer):

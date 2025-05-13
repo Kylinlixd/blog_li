@@ -349,6 +349,7 @@ class FileUploadView(APIView):
             is_public = request.data.get('is_public', True)
             
             logger.info(f"上传文件信息: 类型={file_type}, 大小={file.size}, 名称={file.name}")
+            logger.info(f"动态ID: {dynamic_id}")
             
             # 验证文件类型
             is_valid, error_message = validate_file_type(file, file_type)
@@ -399,9 +400,12 @@ class FileUploadView(APIView):
                 is_public=is_public
             )
             
+            logger.info(f"文件记录已创建: {upload_file.id}")
+            
             # 添加标签
             if tag_ids:
                 upload_file.tags.set(tag_ids)
+                logger.info(f"已添加标签: {tag_ids}")
             
             # 如果提供了动态ID，则关联到动态
             if dynamic_id:
