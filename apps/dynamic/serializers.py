@@ -243,9 +243,18 @@ class DynamicUpdateSerializer(serializers.ModelSerializer):
         fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags']
 
 
-class DynamicListSerializer(serializers.Serializer):
-    items = DynamicSerializer(many=True)
-    total = serializers.IntegerField()
+class DynamicListSerializer(serializers.ModelSerializer):
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    views = serializers.IntegerField(source='view_count', read_only=True)
+    summary = serializers.SerializerMethodField()
     
     class Meta:
-        fields = ['items', 'total']
+        model = Dynamic
+        fields = ['id', 'title', 'summary', 'createdAt', 'views']
+    
+    def get_summary(self, obj):
+        # 从content中提取摘要，取前100个字符
+        content = obj.content
+        if len(content) > 100:
+            return content[:100] + '...'
+        return content

@@ -19,6 +19,7 @@ from apps.tag.models import Tag
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from django.conf import settings
 import os
+from apps.category.serializers import CategorySerializer
 
 
 class DynamicPagination(PageNumberPagination):
@@ -266,14 +267,41 @@ class CategoryDynamicsView(APIView):
     
     def get(self, request, categoryId):
         try:
+            # 获取分类
             category = Category.objects.get(pk=categoryId)
-            dynamics = Dynamic.objects.filter(category=category).order_by('-created_at')
-            paginator = self.pagination_class()
-            result = paginator.paginate_queryset(dynamics, request)
-            serializer = DynamicSerializer(result, many=True)
-            return paginator.get_paginated_response(serializer.data)
+            
+            # 获取该分类下已发布的动态
+            dynamics = Dynamic.objects.filter(
+                category=category,
+                status='published'
+            ).order_by('-created_at')
+            
+            # 序列化分类信息
+            category_serializer = CategorySerializer(category)
+            
+            # 序列化动态列表
+            dynamics_serializer = DynamicListSerializer(dynamics, many=True)
+            
+            # 返回数据
+            return Response({
+                'code': 200,
+                'message': 'success',
+                'data': {
+                    'category': category_serializer.data,
+                    'dynamics': dynamics_serializer.data
+                }
+            })
+            
         except Category.DoesNotExist:
-            return Response({'code': 404, 'message': '分类不存在'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                'code': 404,
+                'message': '分类不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class TagDynamicsView(APIView):
