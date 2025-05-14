@@ -76,8 +76,13 @@ class BlogCategoriesView(ViewSet):
     def list(self, request):
         categories = Category.objects.all()
         serializer = CategorySerializer(categories, many=True)
-        return Response({
+        response = Response({
             'code': 200,
             'message': 'success',
             'data': serializer.data
         })
+        # 添加缓存控制头
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        return response

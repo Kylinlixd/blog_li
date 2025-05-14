@@ -125,30 +125,48 @@ class DynamicViewSet(ModelViewSet):
         try:
             # 获取动态ID
             pk = kwargs.get('pk')
-            print(f"尝试获取动态 ID: {pk}")
             
-            # 直接从数据库查询
-            instance = Dynamic.objects.filter(id=pk).first()
+            # 获取动态，只返回已发布的
+            instance = Dynamic.objects.filter(
+                id=pk,
+                status='published'
+            ).first()
+            
             if not instance:
-                print(f"动态不存在: ID={pk}")
                 return Response({
                     'code': 404,
                     'message': '动态不存在或已被删除',
                     'data': None
                 }, status=status.HTTP_404_NOT_FOUND)
             
+            # 增加浏览量
+            instance.view_count += 1
+            instance.save()
+            
             # 序列化数据
             serializer = self.get_serializer(instance)
+            
+            # 返回数据
             return Response({
                 'code': 200,
-                'message': '获取动态成功',
-                'data': serializer.data
+                'message': 'success',
+                'data': {
+                    'id': instance.id,
+                    'title': instance.title,
+                    'content': instance.content,
+                    'createdAt': instance.created_at,
+                    'views': instance.view_count,
+                    'tags': [{
+                        'id': tag.id,
+                        'name': tag.name
+                    } for tag in instance.tags.all()]
+                }
             })
+            
         except Exception as e:
-            print(f"获取动态详情错误: {str(e)}")
             return Response({
                 'code': 500,
-                'message': f'获取动态详情失败: {str(e)}',
+                'message': str(e),
                 'data': None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
