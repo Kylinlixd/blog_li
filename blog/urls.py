@@ -51,10 +51,13 @@ urlpatterns = [
     path('api/auth/profile/', UserViewSet.as_view({'put': 'profile'}), name='update-profile'),
     
     # 博客前台API
+    path('blog/dynamics/', DynamicViewSet.as_view({'get': 'list'}), name='blog-dynamics'),
+    path('blog/dynamics/<int:pk>/', DynamicViewSet.as_view({'get': 'retrieve'}), name='blog-dynamic-detail'),
     path('blog/dynamics/hot/', HotDynamicsView.as_view({'get': 'list'}), name='hot-dynamics'),
     path('blog/dynamics/recent/', RecentDynamicsView.as_view({'get': 'list'}), name='recent-dynamics'),
     path('blog/categories/', BlogCategoriesView.as_view({'get': 'list'}), name='blog-categories'),
     path('blog/categories/<int:categoryId>/dynamics/', CategoryDynamicsView.as_view(), name='category-dynamics'),
+    path('blog/dynamics/<int:pk>/like/', DynamicViewSet.as_view({'post': 'like'}), name='dynamic-like'),
     
     # 文件上传API
     path('api/upload/', include('apps.upload.urls')),

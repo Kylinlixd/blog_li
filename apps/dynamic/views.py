@@ -45,16 +45,22 @@ class DynamicViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]  # 默认需要认证
     
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]  # 列表和详情允许所有用户访问
+        if self.action in ['list', 'retrieve', 'like']:
+            return [AllowAny()]  # 列表、详情和点赞允许所有用户访问
         return super().get_permissions()
     
     def dispatch(self, request, *args, **kwargs):
         """重载dispatch方法，确保绕过认证"""
-        # 对于GET请求，我们跳过认证
-        if request.method.lower() == 'get':
+        # 对于GET请求和点赞请求，我们跳过认证
+        if request.method.lower() == 'get' or (self.action == 'like' and request.method.lower() == 'post'):
             self.authentication_classes = []
         return super().dispatch(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        # 如果是前台请求，只返回已发布的动态
+        if self.request.path.startswith('/blog'):
+            return Dynamic.objects.filter(status='published')
+        return super().get_queryset()
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -65,56 +71,21 @@ class DynamicViewSet(ModelViewSet):
             return DynamicListSerializer
         return DynamicSerializer
     
-    def get_queryset(self):
-        # 如果是获取单个动态，直接返回所有动态
-        if self.action == 'retrieve':
-            return Dynamic.objects.all()
-            
-        queryset = super().get_queryset()
-        
-        # 过滤条件
-        type = self.request.query_params.get('type')
-        status = self.request.query_params.get('status')
-        content = self.request.query_params.get('content')
-        
-        if type:
-            queryset = queryset.filter(type=type)
-        if status:
-            queryset = queryset.filter(status=status)
-        if content:
-            queryset = queryset.filter(content__icontains=content)  # 使用 icontains 进行模糊搜索
-        
-        # 排序
-        sort = self.request.query_params.get('sort') or self.request.query_params.get('params[sort]')
-        if sort:
-            field, order = sort.split(':')
-            if field == 'createdAt':
-                field = 'created_at'
-            if order == 'desc':
-                field = f'-{field}'
-            queryset = queryset.order_by(field)
-        
-        return queryset
-    
     def list(self, request, *args, **kwargs):
         try:
             queryset = self.get_queryset()
             page = self.paginate_queryset(queryset)
             if page is not None:
-                serializer = DynamicSerializer(page, many=True)
+                serializer = self.get_serializer(page, many=True)
                 return self.get_paginated_response(serializer.data)
             
-            serializer = DynamicSerializer(queryset, many=True)
+            serializer = self.get_serializer(queryset, many=True)
             return Response({
                 'code': 200,
                 'message': 'success',
-                'data': {
-                    'total': queryset.count(),
-                    'items': serializer.data
-                }
+                'data': serializer.data
             })
         except Exception as e:
-            print(f"获取动态列表错误: {str(e)}")  # 打印错误信息
             return Response({
                 'code': 500,
                 'message': str(e),
@@ -123,21 +94,7 @@ class DynamicViewSet(ModelViewSet):
     
     def retrieve(self, request, *args, **kwargs):
         try:
-            # 获取动态ID
-            pk = kwargs.get('pk')
-            
-            # 获取动态，只返回已发布的
-            instance = Dynamic.objects.filter(
-                id=pk,
-                status='published'
-            ).first()
-            
-            if not instance:
-                return Response({
-                    'code': 404,
-                    'message': '动态不存在或已被删除',
-                    'data': None
-                }, status=status.HTTP_404_NOT_FOUND)
+            instance = self.get_object()
             
             # 增加浏览量
             instance.view_count += 1
@@ -154,8 +111,9 @@ class DynamicViewSet(ModelViewSet):
                     'id': instance.id,
                     'title': instance.title,
                     'content': instance.content,
-                    'createdAt': instance.created_at,
+                    'created_at': instance.created_at,
                     'views': instance.view_count,
+                    'likes': instance.like_count,
                     'tags': [{
                         'id': tag.id,
                         'name': tag.name
@@ -245,6 +203,58 @@ class DynamicViewSet(ModelViewSet):
             'code': 200,
             'message': '浏览量增加成功'
         })
+
+    @action(detail=True, methods=['post'])
+    def like(self, request, pk=None):
+        try:
+            dynamic = self.get_object()
+            user = request.user
+            
+            # 检查用户是否已登录
+            if not user.is_authenticated:
+                return Response({
+                    'code': 200,
+                    'message': '点赞成功',
+                    'data': {
+                        'liked': True,
+                        'like_count': dynamic.like_count + 1
+                    }
+                })
+            
+            # 检查用户是否已点赞
+            if dynamic.liked_by.filter(id=user.id).exists():
+                # 取消点赞
+                dynamic.liked_by.remove(user)
+                dynamic.like_count = max(0, dynamic.like_count - 1)
+                dynamic.save()
+                return Response({
+                    'code': 200,
+                    'message': '取消点赞成功',
+                    'data': {
+                        'liked': False,
+                        'like_count': dynamic.like_count
+                    }
+                })
+            else:
+                # 添加点赞
+                dynamic.liked_by.add(user)
+                dynamic.like_count += 1
+                dynamic.save()
+                return Response({
+                    'code': 200,
+                    'message': '点赞成功',
+                    'data': {
+                        'liked': True,
+                        'like_count': dynamic.like_count
+                    }
+                })
+                
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'message': str(e),
+                'data': None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class HotDynamicsView(ReadOnlyModelViewSet):

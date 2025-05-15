@@ -47,7 +47,7 @@ class DynamicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dynamic
         fields = [
-            'id', 'content', 'type', 'status', 'mediaUrls',
+            'id', 'title', 'content', 'type', 'status', 'mediaUrls',
             'category', 'tags', 'view_count', 'createdAt', 'updatedAt',
             'author'
         ]
@@ -138,6 +138,7 @@ class SimpleDynamicSerializer(serializers.ModelSerializer):
     """
     简化的动态序列化器，按照指定格式返回动态数据
     {
+      "title": "动态标题",
       "type": "text/image/audio/video", // 内容类型
       "content": "动态的文字内容", // 文本内容
       "mediaUrls": [], // 媒体文件URL数组，根据类型包含图片、音频或视频链接
@@ -148,7 +149,7 @@ class SimpleDynamicSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Dynamic
-        fields = ['id', 'type', 'content', 'mediaUrls', 'status']
+        fields = ['id', 'title', 'type', 'content', 'mediaUrls', 'status']
     
     def get_mediaUrls(self, obj):
         # 根据动态类型返回不同的媒体URL
@@ -171,6 +172,7 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
     """
     接收前端发送的动态创建数据
     {
+      "title": "动态标题",
       "type": "text/image/audio/video",
       "content": "动态内容",
       "status": "draft/published",
@@ -202,7 +204,7 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Dynamic
-        fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags', 
+        fields = ['title', 'content', 'type', 'status', 'media_urls', 'category', 'tags', 
                  'categoryId', 'mediaUrls', 'fileIds', 'createdAt']
     
     def create(self, validated_data):
@@ -240,21 +242,51 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
 class DynamicUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dynamic
-        fields = ['content', 'type', 'status', 'media_urls', 'category', 'tags']
+        fields = ['title', 'content', 'type', 'status', 'media_urls', 'category', 'tags']
 
 
 class DynamicListSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
     views = serializers.IntegerField(source='view_count', read_only=True)
-    summary = serializers.SerializerMethodField()
+    likes = serializers.IntegerField(source='like_count', read_only=True)
+    comments = serializers.SerializerMethodField()
+    category = CategorySerializer(read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    files = MediaFileSerializer(many=True, read_only=True)
+    mediaUrls = serializers.SerializerMethodField()
     
     class Meta:
         model = Dynamic
-        fields = ['id', 'title', 'summary', 'createdAt', 'views']
+        fields = [
+            'id', 'title', 'content', 'type', 'status',
+            'created_at', 'updated_at', 'views', 'likes', 'comments',
+            'category', 'tags', 'files', 'mediaUrls'
+        ]
     
-    def get_summary(self, obj):
-        # 从content中提取摘要，取前100个字符
-        content = obj.content
-        if len(content) > 100:
-            return content[:100] + '...'
-        return content
+    def get_comments(self, obj):
+        # 获取评论数量
+        return obj.comments.count() if hasattr(obj, 'comments') else 0
+        
+    def get_mediaUrls(self, obj):
+        # 获取关联的文件
+        files = obj.files.all()
+        
+        if not files:
+            return []
+            
+        # 根据动态类型过滤文件
+        if obj.type == 'image':
+            files = files.filter(file_type='image')
+        elif obj.type == 'audio':
+            files = files.filter(file_type='audio')
+        elif obj.type == 'video':
+            files = files.filter(file_type='video')
+            
+        # 返回文件信息列表
+        return [{
+            'url': file.file_url,
+            'type': file.file_type,
+            'name': file.name,
+            'size': file.file_size
+        } for file in files]

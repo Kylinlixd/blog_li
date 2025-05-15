@@ -21,6 +21,7 @@ class Dynamic(models.Model):
     )
     
     author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dynamics')
+    title = models.CharField(max_length=200, help_text="动态标题")
     content = models.TextField(help_text="动态内容")
     type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='text')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
@@ -29,6 +30,8 @@ class Dynamic(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='dynamics')
     tags = models.ManyToManyField(Tag, related_name='dynamics', blank=True)
     view_count = models.PositiveIntegerField(default=0)
+    like_count = models.PositiveIntegerField(default=0)
+    liked_by = models.ManyToManyField(User, related_name='liked_dynamics', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
