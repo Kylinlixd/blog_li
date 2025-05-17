@@ -22,7 +22,10 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.user.views import UserViewSet, CustomTokenObtainPairView
-from apps.dynamic.views import DynamicViewSet, HotDynamicsView, RecentDynamicsView, CategoryDynamicsView
+from apps.dynamic.views import (
+    DynamicViewSet, HotDynamicsView, RecentDynamicsView, 
+    CategoryDynamicsView, SearchView, TagDynamicsView
+)
 from apps.category.views import CategoryViewSet, BlogCategoriesView
 from apps.tag.views import TagViewSet
 from apps.comment.views import CommentViewSet
@@ -58,6 +61,9 @@ urlpatterns = [
     path('blog/categories/', BlogCategoriesView.as_view({'get': 'list'}), name='blog-categories'),
     path('blog/categories/<int:categoryId>/dynamics/', CategoryDynamicsView.as_view(), name='category-dynamics'),
     path('blog/dynamics/<int:pk>/like/', DynamicViewSet.as_view({'post': 'like'}), name='dynamic-like'),
+    path('blog/search/', SearchView.as_view(), name='blog-search'),
+    path('blog/tags/', TagViewSet.as_view({'get': 'list'}), name='blog-tags'),
+    path('blog/tags/<int:tagId>/dynamics/', TagDynamicsView.as_view(), name='tag-dynamics'),
     
     # 文件上传API
     path('api/upload/', include('apps.upload.urls')),

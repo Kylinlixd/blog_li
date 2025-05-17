@@ -7,7 +7,7 @@ from apps.dynamic.serializers import (
     AdminDynamicSerializer, SimpleDynamicSerializer,
     DynamicCreateSerializer, DynamicUpdateSerializer, DynamicListSerializer
 )
-from django.db.models import Q, F
+from django.db.models import Q, F, Count
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
@@ -20,6 +20,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from django.conf import settings
 import os
 from apps.category.serializers import CategorySerializer
+from django.db.models import Case, When, Value, FloatField
 
 
 class DynamicPagination(PageNumberPagination):
@@ -45,14 +46,14 @@ class DynamicViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]  # 默认需要认证
     
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'like']:
-            return [AllowAny()]  # 列表、详情和点赞允许所有用户访问
+        if self.action in ['list', 'retrieve', 'like', 'view']:
+            return [AllowAny()]  # 列表、详情、点赞和浏览允许所有用户访问
         return super().get_permissions()
     
     def dispatch(self, request, *args, **kwargs):
         """重载dispatch方法，确保绕过认证"""
-        # 对于GET请求和点赞请求，我们跳过认证
-        if request.method.lower() == 'get' or (self.action == 'like' and request.method.lower() == 'post'):
+        # 对于GET请求和点赞、浏览请求，我们跳过认证
+        if request.method.lower() == 'get' or (self.action in ['like', 'view'] and request.method.lower() == 'post'):
             self.authentication_classes = []
         return super().dispatch(request, *args, **kwargs)
     
@@ -338,14 +339,46 @@ class TagDynamicsView(APIView):
     
     def get(self, request, tagId):
         try:
+            # 获取标签
             tag = Tag.objects.get(pk=tagId)
-            dynamics = Dynamic.objects.filter(tags=tag).order_by('-created_at')
+            
+            # 获取该标签下已发布的动态
+            dynamics = Dynamic.objects.filter(
+                tags=tag,
+                status='published'
+            ).order_by('-created_at')
+            
+            # 分页
             paginator = self.pagination_class()
             result = paginator.paginate_queryset(dynamics, request)
-            serializer = DynamicSerializer(result, many=True)
-            return paginator.get_paginated_response(serializer.data)
+            
+            # 序列化数据
+            serializer = DynamicListSerializer(result, many=True)
+            
+            # 返回数据
+            return Response({
+                'code': 200,
+                'message': 'success',
+                'data': {
+                    'tag': {
+                        'id': tag.id,
+                        'name': tag.name,
+                        'count': tag.dynamics.filter(status='published').count()
+                    },
+                    'dynamics': serializer.data
+                }
+            })
+            
         except Tag.DoesNotExist:
-            return Response({'code': 404, 'message': '标签不存在'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({
+                'code': 404,
+                'message': '标签不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class DynamicListView(APIView):
@@ -396,4 +429,138 @@ class DynamicListView(APIView):
             return Response({
                 'code': 500,
                 'message': f'获取动态列表失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SearchView(APIView):
+    permission_classes = [AllowAny]
+    pagination_class = DynamicPagination
+    
+    def get(self, request):
+        try:
+            # 获取查询参数
+            keyword = request.GET.get('keyword', '')
+            page = int(request.GET.get('page', 1))
+            page_size = int(request.GET.get('pageSize', 10))
+            search_type = request.GET.get('searchType', 'all')
+            include_tags = request.GET.get('includeTags', 'true').lower() == 'true'
+            include_categories = request.GET.get('includeCategories', 'true').lower() == 'true'
+            sort_by = request.GET.get('sortBy', 'relevance')
+            
+            results = []
+            
+            # 搜索动态（只返回已发布的）
+            dynamics = Dynamic.objects.filter(
+                Q(title__icontains=keyword) | 
+                Q(content__icontains=keyword),
+                status='published'
+            ).annotate(
+                relevance=Case(
+                    When(title__icontains=keyword, then=Value(0.9)),
+                    When(content__icontains=keyword, then=Value(0.7)),
+                    default=Value(0.5),
+                    output_field=FloatField(),
+                )
+            )
+            
+            # 添加动态结果
+            for dynamic in dynamics:
+                results.append({
+                    'id': dynamic.id,
+                    'type': 'dynamic',
+                    'title': dynamic.title,
+                    'content': dynamic.content,
+                    'excerpt': dynamic.content[:200] + '...' if len(dynamic.content) > 200 else dynamic.content,
+                    'createdAt': dynamic.created_at,
+                    'updatedAt': dynamic.updated_at,
+                    'views': dynamic.view_count,
+                    'likes': dynamic.like_count,
+                    'comments': dynamic.comments.count() if hasattr(dynamic, 'comments') else 0,
+                    'relevance': dynamic.relevance,
+                    'tags': [{
+                        'id': tag.id,
+                        'name': tag.name,
+                        'count': tag.dynamics.filter(status='published').count()
+                    } for tag in dynamic.tags.all()],
+                    'category': {
+                        'id': dynamic.category.id,
+                        'name': dynamic.category.name,
+                        'count': dynamic.category.dynamics.filter(status='published').count()
+                    } if dynamic.category else None
+                })
+            
+            # 搜索标签
+            if include_tags:
+                tags = Tag.objects.filter(
+                    name__icontains=keyword
+                ).annotate(
+                    count=Count('dynamics', filter=Q(dynamics__status='published')),
+                    relevance=Case(
+                        When(name__icontains=keyword, then=Value(0.85)),
+                        default=Value(0.5),
+                        output_field=FloatField(),
+                    )
+                )
+                
+                for tag in tags:
+                    results.append({
+                        'id': tag.id,
+                        'type': 'tag',
+                        'title': tag.name,
+                        'name': tag.name,
+                        'relevance': tag.relevance,
+                        'count': tag.count,
+                        'description': f"{tag.name} 相关文章标签"
+                    })
+            
+            # 搜索分类
+            if include_categories:
+                categories = Category.objects.filter(
+                    name__icontains=keyword
+                ).annotate(
+                    count=Count('dynamics', filter=Q(dynamics__status='published')),
+                    relevance=Case(
+                        When(name__icontains=keyword, then=Value(0.75)),
+                        default=Value(0.5),
+                        output_field=FloatField(),
+                    )
+                )
+                
+                for category in categories:
+                    results.append({
+                        'id': category.id,
+                        'type': 'category',
+                        'title': category.name,
+                        'name': category.name,
+                        'relevance': category.relevance,
+                        'count': category.count,
+                        'description': f"{category.name} 相关文章"
+                    })
+            
+            # 按相关度排序
+            if sort_by == 'relevance':
+                results.sort(key=lambda x: x['relevance'], reverse=True)
+            
+            # 分页
+            total = len(results)
+            start = (page - 1) * page_size
+            end = start + page_size
+            paginated_results = results[start:end]
+            
+            return Response({
+                'code': 200,
+                'message': 'success',
+                'data': {
+                    'list': paginated_results,
+                    'total': total,
+                    'page': page,
+                    'pageSize': page_size
+                }
+            })
+            
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'message': str(e),
+                'data': None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
