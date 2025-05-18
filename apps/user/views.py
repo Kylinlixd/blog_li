@@ -173,7 +173,11 @@ class UserViewSet(viewsets.ModelViewSet):
             serializer.save()
             return Response({
                 'code': 200,
-                'data': serializer.data,
+                'data': {
+                    **serializer.data,
+                    'created_at': user.date_joined,
+                    'updated_at': user.last_login
+                },
                 'message': '个人信息更新成功'
             })
         else:
