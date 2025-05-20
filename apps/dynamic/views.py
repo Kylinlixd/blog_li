@@ -52,8 +52,11 @@ class DynamicViewSet(ModelViewSet):
     
     def dispatch(self, request, *args, **kwargs):
         """重载dispatch方法，确保绕过认证"""
-        # 对于GET请求和点赞、浏览请求，我们跳过认证
-        if request.method.lower() == 'get' or (self.action in ['like', 'view'] and request.method.lower() == 'post'):
+        # 对于GET请求，我们跳过认证
+        if request.method.lower() == 'get':
+            self.authentication_classes = []
+        # 对于点赞和浏览请求，我们跳过认证
+        elif request.path.endswith('/like/') or request.path.endswith('/view/'):
             self.authentication_classes = []
         return super().dispatch(request, *args, **kwargs)
     
@@ -115,6 +118,10 @@ class DynamicViewSet(ModelViewSet):
                     'created_at': instance.created_at,
                     'views': instance.view_count,
                     'likes': instance.like_count,
+                    'category': {
+                        'id': instance.category.id,
+                        'name': instance.category.name
+                    } if instance.category else None,
                     'tags': [{
                         'id': tag.id,
                         'name': tag.name
@@ -209,38 +216,58 @@ class DynamicViewSet(ModelViewSet):
     def like(self, request, pk=None):
         try:
             dynamic = self.get_object()
-            user = request.user
+            ip_address = request.META.get('REMOTE_ADDR')
             
-            # 检查用户是否已登录
-            if not user.is_authenticated:
+            # 检查 IP 是否已经点赞
+            if dynamic.ip_likes.filter(ip_address=ip_address).exists():
                 return Response({
-                    'code': 200,
-                    'message': '点赞成功',
+                    'code': 400,
+                    'message': '您已经点过赞了',
                     'data': {
                         'liked': True,
-                        'like_count': dynamic.like_count + 1
-                    }
-                })
-            
-            # 检查用户是否已点赞
-            if dynamic.liked_by.filter(id=user.id).exists():
-                # 取消点赞
-                dynamic.liked_by.remove(user)
-                dynamic.like_count = max(0, dynamic.like_count - 1)
-                dynamic.save()
-                return Response({
-                    'code': 200,
-                    'message': '取消点赞成功',
-                    'data': {
-                        'liked': False,
                         'like_count': dynamic.like_count
                     }
                 })
+            
+            # 检查用户是否已登录
+            if request.user.is_authenticated:
+                # 检查用户是否已点赞
+                if dynamic.liked_by.filter(id=request.user.id).exists():
+                    # 取消点赞
+                    dynamic.liked_by.remove(request.user)
+                    dynamic.like_count = max(0, dynamic.like_count - 1)
+                    dynamic.save()
+                    # 删除 IP 点赞记录
+                    dynamic.ip_likes.filter(ip_address=ip_address).delete()
+                    return Response({
+                        'code': 200,
+                        'message': '取消点赞成功',
+                        'data': {
+                            'liked': False,
+                            'like_count': dynamic.like_count
+                        }
+                    })
+                else:
+                    # 添加点赞
+                    dynamic.liked_by.add(request.user)
+                    dynamic.like_count += 1
+                    dynamic.save()
+                    # 创建 IP 点赞记录
+                    dynamic.ip_likes.create(ip_address=ip_address)
+                    return Response({
+                        'code': 200,
+                        'message': '点赞成功',
+                        'data': {
+                            'liked': True,
+                            'like_count': dynamic.like_count
+                        }
+                    })
             else:
-                # 添加点赞
-                dynamic.liked_by.add(user)
+                # 未登录用户只能点赞一次
                 dynamic.like_count += 1
                 dynamic.save()
+                # 创建 IP 点赞记录
+                dynamic.ip_likes.create(ip_address=ip_address)
                 return Response({
                     'code': 200,
                     'message': '点赞成功',

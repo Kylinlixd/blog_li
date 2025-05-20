@@ -63,3 +63,15 @@ class Dynamic(models.Model):
         if self.video_data:
             return json.loads(self.video_data)
         return None
+
+class DynamicLike(models.Model):
+    dynamic = models.ForeignKey(Dynamic, on_delete=models.CASCADE, related_name='ip_likes')
+    ip_address = models.GenericIPAddressField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('dynamic', 'ip_address')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.ip_address} liked {self.dynamic.title}"
