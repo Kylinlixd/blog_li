@@ -75,6 +75,7 @@ urlpatterns = [
     path('blog/dynamics/recent/', RecentDynamicsView.as_view({'get': 'list'}), name='recent-dynamics'),
     path('blog/dynamics/<int:pk>/', DynamicViewSet.as_view({'get': 'retrieve'}), name='blog-dynamic-detail'),
     path('blog/dynamics/<int:pk>/like/', DynamicViewSet.as_view({'post': 'like'}), name='dynamic-like'),
+    path('blog/dynamics/<int:pk>/view/', DynamicViewSet.as_view({'put': 'view'}), name='dynamic-view'),
     path('blog/comments/', BlogCommentView.as_view(), name='blog-comments'),
     path('blog/categories/', BlogCategoriesView.as_view({'get': 'list'}), name='blog-categories'),
     path('blog/categories/<int:categoryId>/dynamics/', CategoryDynamicsView.as_view(), name='category-dynamics'),

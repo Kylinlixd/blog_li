@@ -100,9 +100,15 @@ class DynamicViewSet(ModelViewSet):
         try:
             instance = self.get_object()
             
-            # 增加浏览量
-            instance.view_count += 1
-            instance.save()
+            # 使用F表达式原子性地增加浏览量
+            from django.db.models import F
+            from django.db import transaction
+            
+            with transaction.atomic():
+                # 原子性地增加浏览量
+                Dynamic.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
+                # 重新获取最新值
+                instance.refresh_from_db()
             
             # 序列化数据
             serializer = self.get_serializer(instance)
@@ -202,15 +208,40 @@ class DynamicViewSet(ModelViewSet):
             'message': '获取相邻动态成功'
         })
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post', 'put'])
     def view(self, request, pk=None):
-        dynamic = self.get_object()
-        dynamic.view_count += 1
-        dynamic.save()
-        return Response({
-            'code': 200,
-            'message': '浏览量增加成功'
-        })
+        try:
+            dynamic = self.get_object()
+            ip_address = request.META.get('REMOTE_ADDR', '')
+            
+            # 使用F表达式原子性地增加浏览量
+            from django.db.models import F
+            from django.db import transaction
+            
+            with transaction.atomic():
+                # 获取更新前的值
+                old_view_count = dynamic.view_count
+                # 原子性地增加浏览量
+                Dynamic.objects.filter(pk=dynamic.pk).update(view_count=F('view_count') + 1)
+                # 重新获取最新值
+                dynamic.refresh_from_db()
+            
+            return Response({
+                'code': 200,
+                'message': '浏览量增加成功',
+                'data': {
+                    'id': dynamic.id,
+                    'title': dynamic.title,
+                    'old_view_count': old_view_count,
+                    'view_count': dynamic.view_count
+                }
+            })
+        except Exception as e:
+            return Response({
+                'code': 500, 
+                'message': f'增加浏览量失败: {str(e)}',
+                'data': None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'])
     def like(self, request, pk=None):

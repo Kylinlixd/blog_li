@@ -91,7 +91,8 @@ class AdjacentDynamicSerializer(serializers.Serializer):
 
 
 class HotDynamicSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(source='create_time', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    views = serializers.IntegerField(source='view_count', read_only=True)
     
     class Meta:
         model = Dynamic
@@ -99,7 +100,7 @@ class HotDynamicSerializer(serializers.ModelSerializer):
 
 
 class RecentDynamicSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(source='create_time', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     
     class Meta:
         model = Dynamic
@@ -110,13 +111,14 @@ class AdminDynamicSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
     audio = serializers.SerializerMethodField()
     video = serializers.SerializerMethodField()
-    createdAt = serializers.DateTimeField(source='create_time', read_only=True)
-    updatedAt = serializers.DateTimeField(source='update_time', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    views = serializers.IntegerField(source='view_count', read_only=True)
     
     class Meta:
         model = Dynamic
         fields = ['id', 'content', 'type', 'status', 'createdAt', 'updatedAt',
-                 'images', 'audio', 'video']
+                 'images', 'audio', 'video', 'views']
     
     def get_images(self, obj):
         if obj.type != 'image' or not obj.images_data:
