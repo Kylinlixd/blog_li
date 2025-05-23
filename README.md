@@ -4,6 +4,499 @@
 
 本项目为基于 Django + DRF 的多角色内容管理系统，支持用户注册、登录、动态内容管理、评论、标签、分类、文件上传、统计等功能，采用 JWT 认证。
 
+## 开发环境要求
+
+- Python 3.8+
+- Django 5.1+
+- Django REST framework 3.14+
+- MySQL 8.0+
+- Redis (可选，用于缓存)
+
+## 本地开发环境搭建
+
+1. 克隆项目
+```bash
+git clone <项目地址>
+cd blog_li
+```
+
+2. 创建并激活虚拟环境
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 或
+.\venv\Scripts\activate  # Windows
+```
+
+3. 安装依赖
+```bash
+pip install -r requirements.txt
+```
+
+4. 配置数据库
+- 创建 MySQL 数据库
+- 修改 `blog/settings.py` 中的数据库配置：
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'your_db_name',
+        'USER': 'your_db_user',
+        'PASSWORD': 'your_db_password',
+        'HOST': 'localhost',
+        'PORT': '3306',
+    }
+}
+```
+
+5. 执行数据库迁移
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+6. 创建超级用户
+```bash
+python manage.py createsuperuser
+```
+
+7. 启动开发服务器
+```bash
+python manage.py runserver
+```
+
+## 生产环境部署
+
+### 1. 服务器要求
+- Linux 服务器（推荐 Ubuntu 20.04+）
+- Nginx
+- Gunicorn
+- MySQL
+- Redis（可选）
+
+### 2. 部署步骤
+
+1. 安装系统依赖
+```bash
+sudo apt update
+sudo apt install python3-pip python3-venv nginx mysql-server
+```
+
+2. 配置项目
+```bash
+# 克隆项目
+git clone <项目地址>
+cd blog_li
+
+# 创建虚拟环境
+python3 -m venv venv
+source venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+pip install gunicorn
+
+# 修改 settings.py
+DEBUG = False
+ALLOWED_HOSTS = ['your_domain.com', 'www.your_domain.com']
+```
+
+3. 配置 Gunicorn
+创建 `/etc/systemd/system/gunicorn.service`：
+```ini
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/blog_li
+ExecStart=/path/to/blog_li/venv/bin/gunicorn --workers 3 --bind unix:/path/to/blog_li/gunicorn.sock blog.wsgi:application
+
+[Install]
+WantedBy=multi-user.target
+```
+
+4. 配置 Nginx
+创建 `/etc/nginx/sites-available/blog_li`：
+```nginx
+server {
+    listen 80;
+    server_name your_domain.com www.your_domain.com;
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    
+    location /static/ {
+        root /path/to/blog_li;
+    }
+
+    location /media/ {
+        root /path/to/blog_li;
+    }
+
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/path/to/blog_li/gunicorn.sock;
+    }
+}
+```
+
+5. 启动服务
+```bash
+# 收集静态文件
+python manage.py collectstatic
+
+# 启动 Gunicorn
+sudo systemctl start gunicorn
+sudo systemctl enable gunicorn
+
+# 配置 Nginx
+sudo ln -s /etc/nginx/sites-available/blog_li /etc/nginx/sites-enabled
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### 3. 安全配置
+
+1. 配置 SSL 证书（使用 Let's Encrypt）
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d your_domain.com -d www.your_domain.com
+```
+
+2. 配置防火墙
+```bash
+sudo ufw allow 'Nginx Full'
+sudo ufw allow OpenSSH
+sudo ufw enable
+```
+
+### 4. 自动部署脚本
+
+#### 4.1 部署脚本 (deploy.sh)
+
+```bash
+#!/bin/bash
+
+# 设置环境变量
+APP_NAME="blog_li"
+APP_DIR="/var/www/$APP_NAME"
+VENV_DIR="$APP_DIR/venv"
+GIT_REPO="<your-git-repo-url>"
+BRANCH="main"
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# 日志函数
+log() {
+    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1${NC}"
+}
+
+error() {
+    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}"
+    exit 1
+}
+
+# 检查命令是否存在
+check_command() {
+    if ! command -v $1 &> /dev/null; then
+        error "$1 未安装"
+    fi
+}
+
+# 检查必要的命令
+check_command git
+check_command python3
+check_command pip3
+check_command nginx
+check_command systemctl
+
+# 创建应用目录
+if [ ! -d "$APP_DIR" ]; then
+    log "创建应用目录: $APP_DIR"
+    sudo mkdir -p $APP_DIR
+    sudo chown -R $USER:$USER $APP_DIR
+fi
+
+# 克隆或更新代码
+if [ ! -d "$APP_DIR/.git" ]; then
+    log "克隆代码仓库"
+    git clone $GIT_REPO $APP_DIR || error "代码克隆失败"
+else
+    log "更新代码"
+    cd $APP_DIR
+    git fetch origin || error "代码更新失败"
+    git checkout $BRANCH || error "分支切换失败"
+    git pull origin $BRANCH || error "代码拉取失败"
+fi
+
+# 创建并激活虚拟环境
+if [ ! -d "$VENV_DIR" ]; then
+    log "创建虚拟环境"
+    python3 -m venv $VENV_DIR || error "虚拟环境创建失败"
+fi
+
+# 激活虚拟环境并安装依赖
+log "安装/更新依赖"
+source $VENV_DIR/bin/activate || error "虚拟环境激活失败"
+pip install --upgrade pip || error "pip 更新失败"
+pip install -r $APP_DIR/requirements.txt || error "依赖安装失败"
+pip install gunicorn || error "gunicorn 安装失败"
+
+# 收集静态文件
+log "收集静态文件"
+python $APP_DIR/manage.py collectstatic --noinput || error "静态文件收集失败"
+
+# 执行数据库迁移
+log "执行数据库迁移"
+python $APP_DIR/manage.py migrate || error "数据库迁移失败"
+
+# 重启 Gunicorn
+log "重启 Gunicorn"
+sudo systemctl restart gunicorn || error "Gunicorn 重启失败"
+
+# 重启 Nginx
+log "重启 Nginx"
+sudo systemctl restart nginx || error "Nginx 重启失败"
+
+log "部署完成！"
+```
+
+#### 4.2 使用说明
+
+1. 将脚本保存为 `deploy.sh`
+2. 修改脚本中的环境变量：
+   - `APP_NAME`: 应用名称
+   - `APP_DIR`: 应用部署目录
+   - `GIT_REPO`: Git 仓库地址
+   - `BRANCH`: 要部署的分支
+
+3. 添加执行权限：
+```bash
+chmod +x deploy.sh
+```
+
+4. 执行部署：
+```bash
+./deploy.sh
+```
+
+#### 4.3 定时自动部署
+
+1. 创建定时任务：
+```bash
+crontab -e
+```
+
+2. 添加定时任务（例如每天凌晨 2 点执行）：
+```
+0 2 * * * /path/to/deploy.sh >> /var/log/blog_li_deploy.log 2>&1
+```
+
+#### 4.4 回滚脚本 (rollback.sh)
+
+```bash
+#!/bin/bash
+
+# 设置环境变量
+APP_NAME="blog_li"
+APP_DIR="/var/www/$APP_NAME"
+BACKUP_DIR="$APP_DIR/backups"
+
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# 日志函数
+log() {
+    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1${NC}"
+}
+
+error() {
+    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}"
+    exit 1
+}
+
+# 检查备份目录
+if [ ! -d "$BACKUP_DIR" ]; then
+    error "备份目录不存在"
+fi
+
+# 获取最新的备份
+LATEST_BACKUP=$(ls -t $BACKUP_DIR/*.tar.gz | head -n1)
+
+if [ -z "$LATEST_BACKUP" ]; then
+    error "没有找到备份文件"
+fi
+
+# 解压备份
+log "解压备份文件: $LATEST_BACKUP"
+tar -xzf $LATEST_BACKUP -C $APP_DIR || error "备份解压失败"
+
+# 重启服务
+log "重启服务"
+sudo systemctl restart gunicorn || error "Gunicorn 重启失败"
+sudo systemctl restart nginx || error "Nginx 重启失败"
+
+log "回滚完成！"
+```
+
+#### 4.5 备份脚本 (backup.sh)
+
+```bash
+#!/bin/bash
+
+# 设置环境变量
+APP_NAME="blog_li"
+APP_DIR="/var/www/$APP_NAME"
+BACKUP_DIR="$APP_DIR/backups"
+DB_NAME="your_db_name"
+DB_USER="your_db_user"
+DB_PASSWORD="your_db_password"
+
+# 创建备份目录
+mkdir -p $BACKUP_DIR
+
+# 生成备份文件名
+BACKUP_FILE="$BACKUP_DIR/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
+
+# 备份数据库
+mysqldump -u$DB_USER -p$DB_PASSWORD $DB_NAME > $APP_DIR/db_backup.sql
+
+# 备份文件
+tar -czf $BACKUP_FILE \
+    $APP_DIR/db_backup.sql \
+    $APP_DIR/media \
+    $APP_DIR/static
+
+# 删除临时文件
+rm $APP_DIR/db_backup.sql
+
+# 保留最近 7 天的备份
+find $BACKUP_DIR -name "backup_*.tar.gz" -mtime +7 -delete
+```
+
+#### 4.6 监控脚本 (monitor.sh)
+
+```bash
+#!/bin/bash
+
+# 设置环境变量
+APP_NAME="blog_li"
+APP_DIR="/var/www/$APP_NAME"
+LOG_FILE="$APP_DIR/logs/monitor.log"
+
+# 检查服务状态
+check_service() {
+    if ! systemctl is-active --quiet $1; then
+        echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1 服务未运行，正在重启..." >> $LOG_FILE
+        systemctl restart $1
+    fi
+}
+
+# 检查磁盘空间
+check_disk_space() {
+    DISK_USAGE=$(df -h $APP_DIR | awk 'NR==2 {print $5}' | sed 's/%//')
+    if [ $DISK_USAGE -gt 90 ]; then
+        echo "[$(date +'%Y-%m-%d %H:%M:%S')] 警告：磁盘使用率超过 90%" >> $LOG_FILE
+    fi
+}
+
+# 检查内存使用
+check_memory() {
+    MEM_USAGE=$(free | grep Mem | awk '{print $3/$2 * 100.0}')
+    if (( $(echo "$MEM_USAGE > 90" | bc -l) )); then
+        echo "[$(date +'%Y-%m-%d %H:%M:%S')] 警告：内存使用率超过 90%" >> $LOG_FILE
+    fi
+}
+
+# 主函数
+main() {
+    # 创建日志目录
+    mkdir -p $(dirname $LOG_FILE)
+    
+    # 检查服务
+    check_service gunicorn
+    check_service nginx
+    
+    # 检查系统资源
+    check_disk_space
+    check_memory
+}
+
+# 执行主函数
+main
+```
+
+#### 4.7 使用说明
+
+1. 将所有脚本放在 `scripts` 目录下：
+```bash
+mkdir -p $APP_DIR/scripts
+```
+
+2. 设置定时任务：
+```bash
+# 每天凌晨 2 点执行备份
+0 2 * * * /path/to/scripts/backup.sh
+
+# 每 5 分钟执行一次监控
+*/5 * * * * /path/to/scripts/monitor.sh
+```
+
+3. 手动执行回滚：
+```bash
+./scripts/rollback.sh
+```
+
+这些脚本提供了完整的自动化部署、备份、回滚和监控功能。根据实际需求，您可以修改脚本中的配置参数。
+
+## 开发规范
+
+1. 代码风格
+- 遵循 PEP 8 规范
+- 使用 Black 进行代码格式化
+- 使用 isort 进行导入排序
+
+2. Git 提交规范
+- feat: 新功能
+- fix: 修复 bug
+- docs: 文档更新
+- style: 代码格式（不影响代码运行的变动）
+- refactor: 重构（既不是新增功能，也不是修改 bug 的代码变动）
+- test: 增加测试
+- chore: 构建过程或辅助工具的变动
+
+3. 分支管理
+- main: 主分支，用于生产环境
+- develop: 开发分支，用于开发环境
+- feature/*: 功能分支，用于开发新功能
+- hotfix/*: 修复分支，用于修复生产环境的 bug
+
+## 常见问题
+
+1. 数据库连接问题
+- 检查数据库配置是否正确
+- 确保数据库服务正在运行
+- 检查数据库用户权限
+
+2. 静态文件问题
+- 确保已执行 `python manage.py collectstatic`
+- 检查 Nginx 配置中的静态文件路径
+- 检查文件权限
+
+3. 权限问题
+- 检查文件系统权限
+- 检查数据库用户权限
+- 检查 Nginx 和 Gunicorn 用户权限
+
 ---
 
 ## API接口总览
