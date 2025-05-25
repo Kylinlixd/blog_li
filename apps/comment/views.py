@@ -60,9 +60,9 @@ class CommentViewSet(ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # 如果是前台请求，只返回已审核通过的评论
+        # 如果是前台请求，返回已审核和待审核的评论
         if self.request.path.startswith('/blog'):
-            queryset = queryset.filter(status='approved')
+            queryset = queryset.filter(status__in=['approved', 'pending'])
         
         # 过滤条件
         dynamic_id = self.request.query_params.get('dynamic_id')
@@ -160,9 +160,10 @@ class BlogCommentView(APIView):
                 'message': 'dynamic_id 是必需的'
             }, status=status.HTTP_400_BAD_REQUEST)
             
+        # 只获取已通过和待审核的评论，过滤掉已拒绝的评论
         queryset = Comment.objects.filter(
             dynamic_id=dynamic_id,
-            status__in=['approved', 'pending']  # 同时获取已审核和待审核的评论
+            status__in=['approved', 'pending']  # 只包含已通过和待审核的评论
         ).order_by('-created_at')  # 按创建时间倒序排列
         
         serializer = CommentSerializer(queryset, many=True)

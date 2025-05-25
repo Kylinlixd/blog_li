@@ -4,10 +4,11 @@ from .models import Category
 class CategorySerializer(serializers.ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    dynamicCount = serializers.IntegerField(source='dynamic_count', read_only=True)
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'sort', 'createdAt', 'updatedAt']
+        fields = ['id', 'name', 'description', 'sort', 'createdAt', 'updatedAt', 'dynamicCount']
         extra_kwargs = {
             'name': {'required': True, 'allow_blank': False},
             'description': {'required': False},

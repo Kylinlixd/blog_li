@@ -366,8 +366,12 @@ class CategoryDynamicsView(APIView):
             # 序列化分类信息
             category_serializer = CategorySerializer(category)
             
+            # 分页
+            paginator = self.pagination_class()
+            result = paginator.paginate_queryset(dynamics, request)
+            
             # 序列化动态列表
-            dynamics_serializer = DynamicListSerializer(dynamics, many=True)
+            dynamics_serializer = DynamicListSerializer(result, many=True)
             
             # 返回数据
             return Response({
@@ -375,7 +379,8 @@ class CategoryDynamicsView(APIView):
                 'message': 'success',
                 'data': {
                     'category': category_serializer.data,
-                    'dynamics': dynamics_serializer.data
+                    'dynamics': dynamics_serializer.data,
+                    'total': paginator.page.paginator.count
                 }
             })
             
@@ -421,9 +426,11 @@ class TagDynamicsView(APIView):
                     'tag': {
                         'id': tag.id,
                         'name': tag.name,
+                        'description': tag.description if hasattr(tag, 'description') else '',
                         'count': tag.dynamics.filter(status='published').count()
                     },
-                    'dynamics': serializer.data
+                    'dynamics': serializer.data,
+                    'total': paginator.page.paginator.count
                 }
             })
             
