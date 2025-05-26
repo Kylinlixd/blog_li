@@ -61,10 +61,41 @@ class DynamicViewSet(ModelViewSet):
         return super().dispatch(request, *args, **kwargs)
     
     def get_queryset(self):
+        queryset = super().get_queryset()
+        
         # 如果是前台请求，只返回已发布的动态
         if self.request.path.startswith('/blog'):
-            return Dynamic.objects.filter(status='published')
-        return super().get_queryset()
+            queryset = queryset.filter(status='published')
+            
+        # 搜索条件
+        keyword = self.request.query_params.get('keyword', '')
+        if keyword:
+            queryset = queryset.filter(
+                Q(title__icontains=keyword) | 
+                Q(content__icontains=keyword)
+            )
+            
+        # 类型过滤
+        dynamic_type = self.request.query_params.get('type')
+        if dynamic_type:
+            queryset = queryset.filter(type=dynamic_type)
+            
+        # 状态过滤
+        status = self.request.query_params.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+            
+        # 分类过滤
+        category_id = self.request.query_params.get('category')
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+            
+        # 标签过滤
+        tag_ids = self.request.query_params.getlist('tags')
+        if tag_ids:
+            queryset = queryset.filter(tags__id__in=tag_ids).distinct()
+            
+        return queryset.order_by('-created_at')
     
     def get_serializer_class(self):
         if self.action == 'create':
