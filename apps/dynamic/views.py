@@ -63,39 +63,72 @@ class DynamicViewSet(ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # 如果是前台请求，只返回已发布的动态
+        # 前台请求
         if self.request.path.startswith('/blog'):
             queryset = queryset.filter(status='published')
+            # 前台搜索条件
+            keyword = self.request.query_params.get('keyword', '')
+            if keyword:
+                queryset = queryset.filter(
+                    Q(title__icontains=keyword) | 
+                    Q(content__icontains=keyword)
+                )
+        # 后台请求
+        else:
+            # 标题搜索
+            title = self.request.query_params.get('title', '')
+            if title:
+                queryset = queryset.filter(title__icontains=title)
+                
+            # 内容搜索
+            content = self.request.query_params.get('content', '')
+            if content:
+                queryset = queryset.filter(content__icontains=content)
+                
+            # 类型过滤
+            dynamic_type = self.request.query_params.get('type')
+            if dynamic_type:
+                queryset = queryset.filter(type=dynamic_type)
+                
+            # 状态过滤
+            status = self.request.query_params.get('status')
+            if status:
+                queryset = queryset.filter(status=status)
+                
+            # 分类过滤
+            category_id = self.request.query_params.get('category')
+            if category_id:
+                queryset = queryset.filter(category_id=category_id)
+                
+            # 标签过滤
+            tag_ids = self.request.query_params.getlist('tags')
+            if tag_ids:
+                queryset = queryset.filter(tags__id__in=tag_ids).distinct()
+                
+            # 排序
+            sort = self.request.query_params.get('sort', '-created_at')
+            if sort:
+                # 处理排序参数，例如：createdAt:desc
+                if ':' in sort:
+                    field, order = sort.split(':')
+                    # 转换前端字段名为后端字段名
+                    field_map = {
+                        'createdAt': 'created_at',
+                        'updatedAt': 'updated_at',
+                        'viewCount': 'view_count',
+                        'likeCount': 'like_count'
+                    }
+                    field = field_map.get(field, field)
+                    # 添加排序前缀
+                    if order.lower() == 'desc':
+                        field = f'-{field}'
+                    queryset = queryset.order_by(field)
+                else:
+                    queryset = queryset.order_by(sort)
+            else:
+                queryset = queryset.order_by('-created_at')
             
-        # 搜索条件
-        keyword = self.request.query_params.get('keyword', '')
-        if keyword:
-            queryset = queryset.filter(
-                Q(title__icontains=keyword) | 
-                Q(content__icontains=keyword)
-            )
-            
-        # 类型过滤
-        dynamic_type = self.request.query_params.get('type')
-        if dynamic_type:
-            queryset = queryset.filter(type=dynamic_type)
-            
-        # 状态过滤
-        status = self.request.query_params.get('status')
-        if status:
-            queryset = queryset.filter(status=status)
-            
-        # 分类过滤
-        category_id = self.request.query_params.get('category')
-        if category_id:
-            queryset = queryset.filter(category_id=category_id)
-            
-        # 标签过滤
-        tag_ids = self.request.query_params.getlist('tags')
-        if tag_ids:
-            queryset = queryset.filter(tags__id__in=tag_ids).distinct()
-            
-        return queryset.order_by('-created_at')
+        return queryset
     
     def get_serializer_class(self):
         if self.action == 'create':
