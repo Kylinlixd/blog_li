@@ -119,8 +119,8 @@ class UserViewSet(viewsets.ModelViewSet):
             auth_header = request.META.get('HTTP_AUTHORIZATION', '')
             if auth_header.startswith('Bearer '):
                 token = auth_header.split(' ')[1]
-                # 将令牌加入黑名单
-                TokenBlacklist.objects.create(token=token)
+                # 将令牌加入黑名单，设置过期时间为15分钟
+                TokenBlacklist.add_token_to_blacklist(token)
             
             # 清除刷新令牌 cookie
             response = Response({
