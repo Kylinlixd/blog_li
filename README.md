@@ -12,26 +12,87 @@
 - 图片处理：Pillow
 - 环境变量：python-dotenv
 
-### 目录结构
+### 项目结构
 ```
 blog_li/
 ├── apps/                    # 应用目录
-│   ├── article/            # 文章管理
-│   ├── category/           # 分类管理
-│   ├── comment/            # 评论系统
-│   ├── dynamic/            # 动态管理
-│   ├── media/              # 媒体文件
-│   ├── tag/                # 标签管理
-│   └── user/               # 用户管理
-├── blog_li/                # 项目配置目录
-├── media/                  # 上传文件存储
-├── static/                 # 静态文件
-├── templates/              # 模板文件
-├── .env                    # 环境变量
-├── manage.py              # Django 管理脚本
-├── requirements.txt       # 项目依赖
-└── README.md             # 项目说明
+│   ├── core/               # 核心功能模块
+│   │   ├── middleware/     # 中间件
+│   │   ├── permissions/    # 权限类
+│   │   └── utils/         # 通用工具
+│   ├── article/           # 文章管理
+│   ├── category/          # 分类管理
+│   ├── comment/           # 评论系统
+│   ├── dynamic/           # 动态管理
+│   ├── media/             # 媒体文件
+│   ├── tag/               # 标签管理
+│   └── user/              # 用户管理
+├── config/                 # 配置文件目录
+│   ├── settings/          # 分环境配置
+│   │   ├── base.py       # 基础配置
+│   │   ├── dev.py        # 开发环境
+│   │   └── prod.py       # 生产环境
+│   ├── urls.py           # URL配置
+│   └── wsgi.py           # WSGI配置
+├── docs/                  # 文档目录
+│   ├── api/              # API文档
+│   └── deploy/           # 部署文档
+├── scripts/              # 脚本目录
+│   ├── deploy.sh         # 部署脚本
+│   └── backup.sh         # 备份脚本
+├── tests/                # 测试目录
+│   ├── unit/            # 单元测试
+│   └── integration/     # 集成测试
+├── media/                # 上传文件存储
+├── static/               # 静态文件
+├── templates/            # 模板文件
+├── .env                  # 环境变量
+├── .env.example          # 环境变量示例
+├── .gitignore           # Git忽略文件
+├── manage.py            # Django管理脚本
+├── requirements/        # 依赖管理
+│   ├── base.txt        # 基础依赖
+│   ├── dev.txt         # 开发依赖
+│   └── prod.txt        # 生产依赖
+└── README.md           # 项目说明
 ```
+
+### 目录说明
+
+#### 1. 应用目录 (apps/)
+- `core/`: 核心功能模块，包含中间件、权限类和通用工具
+- `article/`: 文章管理模块
+- `category/`: 分类管理模块
+- `comment/`: 评论系统模块
+- `dynamic/`: 动态管理模块
+- `media/`: 媒体文件管理模块
+- `tag/`: 标签管理模块
+- `user/`: 用户管理模块
+
+#### 2. 配置目录 (config/)
+- `settings/`: 分环境配置文件
+  - `base.py`: 基础配置
+  - `dev.py`: 开发环境配置
+  - `prod.py`: 生产环境配置
+- `urls.py`: URL 路由配置
+- `wsgi.py`: WSGI 应用配置
+
+#### 3. 文档目录 (docs/)
+- `api/`: API 接口文档
+- `deploy/`: 部署相关文档
+
+#### 4. 脚本目录 (scripts/)
+- `deploy.sh`: 部署脚本
+- `backup.sh`: 备份脚本
+
+#### 5. 测试目录 (tests/)
+- `unit/`: 单元测试
+- `integration/`: 集成测试
+
+#### 6. 依赖管理 (requirements/)
+- `base.txt`: 基础依赖
+- `dev.txt`: 开发环境依赖
+- `prod.txt`: 生产环境依赖
 
 ## 本地部署
 
