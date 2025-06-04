@@ -7,6 +7,9 @@ from django.db import IntegrityError
 from django.conf import settings
 import traceback
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+import uuid
+from django.core.cache import cache
+from datetime import datetime
 
 
 class APIExceptionMiddleware(MiddlewareMixin):
@@ -123,3 +126,40 @@ class APIExceptionMiddleware(MiddlewareMixin):
             return JsonResponse(response_data, status=status.HTTP_404_NOT_FOUND)
             
         return response 
+
+class RequestIdMiddleware(MiddlewareMixin):
+    """
+    请求ID中间件，用于防止重复请求
+    """
+    def process_request(self, request):
+        # 只处理非GET请求
+        if request.method not in ['POST', 'PUT', 'DELETE']:
+            return None
+            
+        # 获取请求ID
+        request_id = request.headers.get('X-Request-ID')
+        
+        # 如果没有请求ID，生成一个新的
+        if not request_id:
+            request_id = str(uuid.uuid4())
+            request.META['HTTP_X_REQUEST_ID'] = request_id
+            return None
+            
+        # 检查请求ID是否已存在
+        cache_key = f'request_id:{request_id}'
+        if cache.get(cache_key):
+            # 获取原始请求时间
+            first_request_time = cache.get(f'{cache_key}:time')
+            return JsonResponse({
+                'code': status.HTTP_409_CONFLICT,
+                'message': '请求重复提交',
+                'data': {
+                    'request_id': request_id,
+                    'first_request_time': first_request_time
+                }
+            }, status=status.HTTP_409_CONFLICT)
+            
+        # 缓存请求ID，有效期5分钟
+        cache.set(cache_key, True, 300)
+        cache.set(f'{cache_key}:time', datetime.now().isoformat(), 300)
+        return None 

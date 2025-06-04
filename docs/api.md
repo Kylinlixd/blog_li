@@ -70,6 +70,28 @@
 }
 ```
 
+### 8. 重复请求验证
+- 所有 POST/PUT/DELETE 请求都需要包含 `X-Request-ID` 请求头
+- `X-Request-ID` 格式：UUID v4
+- 服务器会缓存请求ID 5分钟，防止重复提交
+- 重复请求响应：
+```json
+{
+    "code": 409,
+    "message": "请求重复提交",
+    "data": {
+        "request_id": "550e8400-e29b-41d4-a716-446655440000",
+        "first_request_time": "2024-03-20T10:00:00Z"
+    }
+}
+```
+
+### 9. 幂等性说明
+- GET 请求天然幂等
+- POST 请求：通过 `X-Request-ID` 保证幂等
+- PUT 请求：通过 `X-Request-ID` 保证幂等
+- DELETE 请求：通过 `X-Request-ID` 保证幂等
+
 ## 用户认证
 
 ### 1. 用户注册
