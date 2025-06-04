@@ -100,13 +100,28 @@ sudo nano /etc/nginx/sites-available/blog
 server {
     listen 80;
     server_name your_domain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name your_domain.com;
+
+    ssl_certificate /etc/letsencrypt/live/your_domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your_domain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
 
     location /static/ {
-        alias /path/to/your/static/;
+        alias /var/www/blog/static/;
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
     }
 
     location /media/ {
-        alias /path/to/your/media/;
+        alias /var/www/blog/media/;
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
     }
 
     location / {
@@ -117,11 +132,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
-
-# 启用配置
-sudo ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
 ```
 
 #### 1.6 配置 Supervisor
@@ -146,6 +156,18 @@ stdout_logfile=/var/log/supervisor/blog.out.log
 sudo supervisorctl reread
 sudo supervisorctl update
 sudo supervisorctl start blog
+```
+
+#### 1.7 配置 SSL 证书
+```bash
+# 安装 Certbot
+sudo apt install -y certbot python3-certbot-nginx
+
+# 获取 SSL 证书
+sudo certbot --nginx -d your_domain.com
+
+# 设置自动续期
+sudo certbot renew --dry-run
 ```
 
 ### 2. Docker 部署
@@ -292,20 +314,48 @@ docker-compose exec web python manage.py createsuperuser
 
 ### 2. 备份策略
 ```bash
+# 创建备份目录
+mkdir -p /var/backups/blog
+
+# 数据库备份脚本
+cat > /usr/local/bin/backup_blog.sh << EOF
+#!/bin/bash
+BACKUP_DIR="/var/backups/blog"
+DATE=\$(date +%Y%m%d_%H%M%S)
+
 # 数据库备份
-mysqldump -u blog_user -p blog_db > backup_$(date +%Y%m%d).sql
+mysqldump -u blog_user -p blog_db > \$BACKUP_DIR/db_\$DATE.sql
 
 # 文件备份
-tar -czf media_backup_$(date +%Y%m%d).tar.gz media/
+tar -czf \$BACKUP_DIR/media_\$DATE.tar.gz /var/www/blog/media/
+
+# 保留最近30天的备份
+find \$BACKUP_DIR -name "db_*.sql" -mtime +30 -delete
+find \$BACKUP_DIR -name "media_*.tar.gz" -mtime +30 -delete
+EOF
+
+chmod +x /usr/local/bin/backup_blog.sh
+
+# 添加到 crontab
+echo "0 2 * * * /usr/local/bin/backup_blog.sh" | sudo tee -a /var/spool/cron/crontabs/root
 ```
 
-### 3. 监控
+### 3. 数据库恢复
+```bash
+# 恢复数据库
+mysql -u blog_user -p blog_db < /var/backups/blog/db_20240320_120000.sql
+
+# 恢复媒体文件
+tar -xzf /var/backups/blog/media_20240320_120000.tar.gz -C /var/www/blog/
+```
+
+### 4. 监控
 - 使用 Supervisor 监控应用进程
 - 使用 Nginx 状态监控
 - 使用 MySQL 监控工具
 - 使用 Redis 监控工具（如果使用）
 
-### 4. 更新部署
+### 5. 更新部署
 ```bash
 # 拉取最新代码
 git pull

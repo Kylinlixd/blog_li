@@ -3,9 +3,10 @@
 ## 通用说明
 
 ### 1. 基础信息
-- 基础URL: `http://your-domain.com/api`
+- 基础URL: `http://your-domain.com/api/v1`
 - 所有请求和响应均使用 JSON 格式
 - 时间格式: ISO 8601 (YYYY-MM-DDTHH:mm:ssZ)
+- API 版本: v1
 
 ### 2. 认证方式
 - 使用 JWT (JSON Web Token) 认证
@@ -28,11 +29,33 @@
 - 401: 未认证
 - 403: 无权限
 - 404: 资源不存在
+- 429: 请求过于频繁
 - 500: 服务器错误
 
-### 5. 分页参数
+### 5. 错误响应示例
+```json
+{
+    "code": 400,
+    "message": "请求参数错误",
+    "errors": {
+        "username": ["该字段是必填项"],
+        "password": ["密码长度不能小于8位"]
+    }
+}
+```
+
+### 6. 限流说明
+- 普通用户：每分钟 60 次请求
+- 认证用户：每分钟 120 次请求
+- 超出限制返回 429 状态码
+- 限流响应头：
+  - X-RateLimit-Limit: 限制次数
+  - X-RateLimit-Remaining: 剩余次数
+  - X-RateLimit-Reset: 重置时间
+
+### 7. 分页参数
 - page: 页码（从1开始）
-- pageSize: 每页数量
+- pageSize: 每页数量（默认20，最大100）
 - 响应格式：
 ```json
 {
@@ -495,6 +518,11 @@ Content-Type: multipart/form-data
 请求体：
 file: [文件]
 
+限制：
+- 文件大小：最大 10MB
+- 支持格式：jpg, jpeg, png, gif, pdf, doc, docx
+- 图片尺寸：最大 4096x4096 像素
+
 响应：
 {
     "code": 200,
@@ -507,6 +535,21 @@ file: [文件]
         "created_at": "string"
     },
     "message": "文件上传成功"
+}
+```
+
+### 2. 错误响应示例
+```json
+{
+    "code": 400,
+    "message": "文件上传失败",
+    "errors": {
+        "file": [
+            "文件大小不能超过10MB",
+            "不支持的文件格式",
+            "图片尺寸超出限制"
+        ]
+    }
 }
 ```
 
