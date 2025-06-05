@@ -3,7 +3,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from django.db.models import Count
+from django.db.models import Count, Q
 from .models import Tag
 from .serializers import TagSerializer
 
@@ -25,11 +25,30 @@ class TagViewSet(ModelViewSet):
         return super().dispatch(request, *args, **kwargs)
     
     def list(self, request, *args, **kwargs):
+        # 获取搜索参数
+        keyword = request.query_params.get('keyword', '')
+        status = request.query_params.get('status')
+        
+        # 构建查询
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # 添加搜索条件
+        if keyword:
+            queryset = queryset.filter(
+                Q(name__icontains=keyword) |
+                Q(description__icontains=keyword)
+            )
+            
+        # 状态过滤
+        if status:
+            queryset = queryset.filter(status=status)
+            
         # 添加动态计数
-        queryset = self.filter_queryset(self.get_queryset()).annotate(
-            dynamic_count=Count('dynamics')
+        queryset = queryset.annotate(
+            dynamic_count=Count('dynamics', filter=Q(dynamics__status='published'))
         )
         
+        # 分页
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)

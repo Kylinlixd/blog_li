@@ -96,14 +96,26 @@ class DynamicViewSet(ModelViewSet):
                 queryset = queryset.filter(status=status)
                 
             # 分类过滤
-            category_id = self.request.query_params.get('category')
+            category_id = self.request.query_params.get('categoryId')
             if category_id:
-                queryset = queryset.filter(category_id=category_id)
+                try:
+                    category_id = int(category_id)
+                    queryset = queryset.filter(category_id=category_id)
+                except (ValueError, TypeError):
+                    pass
                 
             # 标签过滤
-            tag_ids = self.request.query_params.getlist('tags')
+            tag_ids = self.request.query_params.getlist('tagIds')
             if tag_ids:
-                queryset = queryset.filter(tags__id__in=tag_ids).distinct()
+                try:
+                    tag_ids = [int(tag_id) for tag_id in tag_ids]
+                    # 使用 Q 对象构建标签查询
+                    tag_query = Q()
+                    for tag_id in tag_ids:
+                        tag_query |= Q(tags__id=tag_id)
+                    queryset = queryset.filter(tag_query).distinct()
+                except (ValueError, TypeError):
+                    pass
                 
             # 排序
             sort = self.request.query_params.get('sort', '-created_at')
@@ -619,17 +631,19 @@ class SearchView(APIView):
                 })
             
             # 搜索标签
-            if include_tags:
+            if include_tags and keyword:
                 tags = Tag.objects.filter(
-                    name__icontains=keyword
+                    Q(name__icontains=keyword) |
+                    Q(description__icontains=keyword)
                 ).annotate(
                     count=Count('dynamics', filter=Q(dynamics__status='published')),
                     relevance=Case(
                         When(name__icontains=keyword, then=Value(0.85)),
+                        When(description__icontains=keyword, then=Value(0.65)),
                         default=Value(0.5),
                         output_field=FloatField(),
                     )
-                )
+                ).filter(count__gt=0)  # 只返回有关联动态的标签
                 
                 for tag in tags:
                     results.append({
@@ -639,21 +653,23 @@ class SearchView(APIView):
                         'name': tag.name,
                         'relevance': tag.relevance,
                         'count': tag.count,
-                        'description': f"{tag.name} 相关文章标签"
+                        'description': tag.description or f"{tag.name} 相关文章标签"
                     })
             
             # 搜索分类
-            if include_categories:
+            if include_categories and keyword:
                 categories = Category.objects.filter(
-                    name__icontains=keyword
+                    Q(name__icontains=keyword) |
+                    Q(description__icontains=keyword)
                 ).annotate(
                     count=Count('dynamics', filter=Q(dynamics__status='published')),
                     relevance=Case(
                         When(name__icontains=keyword, then=Value(0.75)),
+                        When(description__icontains=keyword, then=Value(0.65)),
                         default=Value(0.5),
                         output_field=FloatField(),
                     )
-                )
+                ).filter(count__gt=0)  # 只返回有关联动态的分类
                 
                 for category in categories:
                     results.append({
@@ -663,15 +679,14 @@ class SearchView(APIView):
                         'name': category.name,
                         'relevance': category.relevance,
                         'count': category.count,
-                        'description': f"{category.name} 相关文章"
+                        'description': category.description or f"{category.name} 相关文章"
                     })
             
-            # 按相关度排序
+            # 按相关性排序
             if sort_by == 'relevance':
                 results.sort(key=lambda x: x['relevance'], reverse=True)
             
             # 分页
-            total = len(results)
             start = (page - 1) * page_size
             end = start + page_size
             paginated_results = results[start:end]
@@ -680,16 +695,13 @@ class SearchView(APIView):
                 'code': 200,
                 'message': 'success',
                 'data': {
-                    'list': paginated_results,
-                    'total': total,
-                    'page': page,
-                    'pageSize': page_size
+                    'items': paginated_results,
+                    'total': len(results)
                 }
             })
             
         except Exception as e:
             return Response({
                 'code': 500,
-                'message': str(e),
-                'data': None
+                'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
