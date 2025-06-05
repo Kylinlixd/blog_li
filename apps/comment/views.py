@@ -59,16 +59,29 @@ class CommentViewSet(ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
-        
-        # 如果是前台请求，返回已审核和待审核的评论
+    
+        # 前台请求只返回已审核和待审核的评论
         if self.request.path.startswith('/blog'):
             queryset = queryset.filter(status__in=['approved', 'pending'])
-        
+        else:
+            # 后台请求根据 status 参数过滤
+            status = self.request.query_params.get('status')
+            if status:
+                queryset = queryset.filter(status=status)
+    
         # 过滤条件
         dynamic_id = self.request.query_params.get('dynamic_id')
         if dynamic_id:
             queryset = queryset.filter(dynamic_id=dynamic_id)
-        
+    
+        # 作者搜索
+        author = self.request.query_params.get('author')
+        if author:
+            queryset = queryset.filter(
+                Q(author__username__icontains=author) |
+                Q(nickname__icontains=author)
+            )
+    
         return queryset
     
     def list(self, request, *args, **kwargs):
