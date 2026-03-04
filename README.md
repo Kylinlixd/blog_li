@@ -105,7 +105,7 @@ blog_li/
 
 1. 克隆项目
 ```bash
-git clone [项目地址]
+git clone https://github.com/Kylinlixd/blog_li.git
 cd blog_li
 ```
 
