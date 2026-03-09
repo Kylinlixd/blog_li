@@ -97,9 +97,8 @@ blog_li/
 ## 本地部署
 
 ### 环境要求
-- Python 3.8+
-- MySQL 5.7+
-- pip
+- Python 3.11.11
+- MySQL 8.0+
 
 ### 安装步骤
 
