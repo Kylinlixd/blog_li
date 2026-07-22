@@ -13,6 +13,7 @@ from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.views import APIView
+from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from apps.category.models import Category
 from apps.tag.models import Tag
@@ -41,24 +42,15 @@ class DynamicPagination(PageNumberPagination):
 
 
 class DynamicViewSet(ModelViewSet):
-    queryset = Dynamic.objects.all()
+    queryset = Dynamic.objects.select_related('author', 'category').prefetch_related('tags', 'files')
     pagination_class = DynamicPagination
     permission_classes = [IsAuthenticated]  # 默认需要认证
     
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'like', 'view']:
-            return [AllowAny()]  # 列表、详情、点赞和浏览允许所有用户访问
+        is_public_blog = self.request.path.startswith('/blog/')
+        if is_public_blog and self.action in ['list', 'retrieve', 'like', 'view']:
+            return [AllowAny()]
         return super().get_permissions()
-    
-    def dispatch(self, request, *args, **kwargs):
-        """重载dispatch方法，确保绕过认证"""
-        # 对于GET请求，我们跳过认证
-        if request.method.lower() == 'get':
-            self.authentication_classes = []
-        # 对于点赞和浏览请求，我们跳过认证
-        elif request.path.endswith('/like/') or request.path.endswith('/view/'):
-            self.authentication_classes = []
-        return super().dispatch(request, *args, **kwargs)
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -398,7 +390,12 @@ class HotDynamicsView(ReadOnlyModelViewSet):
     permission_classes = []
     
     def list(self, request, *args, **kwargs):
-        limit = int(request.query_params.get('limit', 5))
+        try:
+            limit = int(request.query_params.get('limit', 5))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({'limit': 'limit 必须是整数'}) from exc
+        if not 1 <= limit <= 100:
+            raise ValidationError({'limit': 'limit 必须在 1 到 100 之间'})
         queryset = self.get_queryset()[:limit]
         serializer = self.get_serializer(queryset, many=True)
         return Response({

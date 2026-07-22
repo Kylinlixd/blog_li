@@ -27,22 +27,12 @@ def ensure_upload_directories():
     """
     确保所有上传目录存在
     """
-    try:
-        # 基础媒体目录
-        if not os.path.exists(settings.MEDIA_ROOT):
-            os.makedirs(settings.MEDIA_ROOT)
-            logger.info(f"创建基础媒体目录: {settings.MEDIA_ROOT}")
-        
-        # 各种类型的上传目录
-        upload_types = ['image', 'video', 'document', 'other', 'avatars']
-        for upload_type in upload_types:
-            upload_dir = os.path.join(settings.MEDIA_ROOT, upload_type)
-            if not os.path.exists(upload_dir):
-                os.makedirs(upload_dir)
-                logger.info(f"创建目录: {upload_dir}")
-    except Exception as e:
-        logger.error(f"创建目录失败: {str(e)}")
-        raise
+    os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
+
+    upload_types = ['image', 'video', 'document', 'other', 'avatars']
+    for upload_type in upload_types:
+        upload_dir = os.path.join(settings.MEDIA_ROOT, upload_type)
+        os.makedirs(upload_dir, exist_ok=True)
 
 # 在应用启动时创建目录
 ensure_upload_directories()

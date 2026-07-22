@@ -21,7 +21,6 @@ from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.http import JsonResponse
-from django.urls import get_resolver
 
 from apps.user.views import UserViewSet, CustomTokenObtainPairView
 from apps.dynamic.views import (
@@ -42,20 +41,9 @@ router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'comments', CommentViewSet, basename='comment')
 
-def debug_urls(request):
-    resolver = get_resolver()
-    urls = []
-    for url_pattern in resolver.url_patterns:
-        if hasattr(url_pattern, 'pattern'):
-            urls.append(str(url_pattern.pattern))
-    return JsonResponse({'urls': urls})
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
-    
-    # 调试路由
-    path('debug/urls/', debug_urls, name='debug-urls'),
     
     # 认证相关
     path('api/auth/login/', UserViewSet.as_view({'post': 'login'}), name='login'),
@@ -65,9 +53,6 @@ urlpatterns = [
     path('api/auth/info/', UserViewSet.as_view({'get': 'info'}), name='user-info'),
     path('api/auth/password/', UserViewSet.as_view({'put': 'password'}), name='change-password'),
     path('api/auth/profile/', UserViewSet.as_view({'put': 'profile'}), name='update-profile'),
-    
-    # 测试路由
-    path('blog/test/', lambda request: JsonResponse({'msg': 'ok'}), name='test'),
     
     # 博客前台API - 直接添加所有路由，不使用 include
     path('blog/dynamics/', DynamicViewSet.as_view({'get': 'list'}), name='blog-dynamics'),
