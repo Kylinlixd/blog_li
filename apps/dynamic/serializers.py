@@ -121,18 +121,12 @@ class AdminDynamicSerializer(serializers.ModelSerializer):
                  'images', 'audio', 'video', 'views']
     
     def get_images(self, obj):
-        if obj.type != 'image' or not obj.images_data:
-            return []
         return obj.images
     
     def get_audio(self, obj):
-        if obj.type != 'audio' or not obj.audio_data:
-            return None
         return obj.audio
     
     def get_video(self, obj):
-        if obj.type != 'video' or not obj.video_data:
-            return None
         return obj.video
 
 
@@ -154,20 +148,9 @@ class SimpleDynamicSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'type', 'content', 'mediaUrls', 'status']
     
     def get_mediaUrls(self, obj):
-        # 根据动态类型返回不同的媒体URL
-        if obj.type == 'image' and obj.images_data:
-            # 从图片数据中提取所有URL
-            return [img.get('url') for img in obj.images]
-        elif obj.type == 'audio' and obj.audio_data:
-            # 返回音频URL
-            audio = obj.audio
-            return [audio.get('url')] if audio and 'url' in audio else []
-        elif obj.type == 'video' and obj.video_data:
-            # 返回视频URL
-            video = obj.video
-            return [video.get('url')] if video and 'url' in video else []
-        else:
+        if obj.type not in {'image', 'audio', 'video'}:
             return []
+        return list(obj.media_urls)
 
 
 class DynamicCreateSerializer(serializers.ModelSerializer):

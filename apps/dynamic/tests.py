@@ -4,6 +4,7 @@ from rest_framework.test import APITestCase
 
 from apps.category.models import Category
 from apps.dynamic.models import Dynamic
+from apps.dynamic.serializers import AdminDynamicSerializer, SimpleDynamicSerializer
 from apps.tag.models import Tag
 
 
@@ -69,3 +70,19 @@ class DynamicAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['code'], 400)
+
+    def test_media_serializers_use_the_current_media_urls_field(self):
+        image = Dynamic.objects.create(
+            author=self.user,
+            title='图片记录',
+            content='图片正文',
+            type='image',
+            status='published',
+            media_urls=['https://example.com/one.png', 'https://example.com/two.png'],
+        )
+
+        admin_data = AdminDynamicSerializer(image).data
+        simple_data = SimpleDynamicSerializer(image).data
+
+        self.assertEqual(admin_data['images'], image.media_urls)
+        self.assertEqual(simple_data['mediaUrls'], image.media_urls)

@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from apps.category.models import Category
 from apps.tag.models import Tag
 from apps.upload.models import UploadFile
-import json
 
 User = get_user_model()
 
@@ -48,21 +47,15 @@ class Dynamic(models.Model):
         
     @property
     def images(self):
-        if self.images_data:
-            return json.loads(self.images_data)
-        return []
+        return list(self.media_urls) if self.type == 'image' else []
         
     @property
     def audio(self):
-        if self.audio_data:
-            return json.loads(self.audio_data)
-        return None
+        return self.media_urls[0] if self.type == 'audio' and self.media_urls else None
         
     @property
     def video(self):
-        if self.video_data:
-            return json.loads(self.video_data)
-        return None
+        return self.media_urls[0] if self.type == 'video' and self.media_urls else None
 
 class DynamicLike(models.Model):
     dynamic = models.ForeignKey(Dynamic, on_delete=models.CASCADE, related_name='ip_likes')
