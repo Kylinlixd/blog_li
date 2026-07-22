@@ -79,17 +79,19 @@ Content-Type: application/json
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/blog/dynamics/` | 已发布内容分页 |
-| GET | `/blog/dynamics/{id}/` | 已发布内容详情 |
+| GET | `/blog/dynamics/{id}/` | 已发布内容详情，不修改阅读量 |
 | GET | `/blog/dynamics/hot/?limit=6` | 热门内容，`limit` 为 1–100 |
 | GET | `/blog/dynamics/recent/?limit=6` | 最近内容 |
 | PUT | `/blog/dynamics/{id}/view/` | 增加阅读量 |
 | POST | `/blog/dynamics/{id}/like/` | 按访问 IP 点赞 |
-| GET/POST | `/blog/comments/` | `dynamic_id` 查询或提交评论 |
+| GET/POST | `/blog/comments/` | `dynamic_id` 查询已通过评论或提交评论 |
 | GET | `/blog/categories/` | 分类及已发布内容数 |
 | GET | `/blog/categories/{id}/dynamics/` | 分类内容 |
 | GET | `/blog/tags/` | 标签列表 |
 | GET | `/blog/tags/{id}/dynamics/` | 标签内容 |
 | GET | `/blog/search/?keyword=vue` | 搜索 |
+
+公开评论列表不会暴露待审核或已拒绝内容；评论提交响应仍会返回本次提交结果。阅读量仅由明确的 `PUT /view/` 请求增加，重复读取详情不会产生副作用。管理端分类、标签和评论接口均要求登录。
 
 内容分页响应：
 

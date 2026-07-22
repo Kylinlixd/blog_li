@@ -55,7 +55,7 @@ python manage.py runserver
 ## 4. API 约定
 
 - 管理端使用 `/api/`，默认要求 `Authorization: Bearer <access>`。
-- 公开读取与评论使用 `/blog/`，只返回已发布内容。
+- 公开读取与评论使用 `/blog/`，只返回已发布内容和审核通过的评论。
 - 响应统一包含 `code`、`message` 和 `data`。
 - 客户端发送的 `X-Request-ID` 会写回响应；五分钟内重复的写请求返回 409。
 - 未捕获异常由 `blog.exception_handler` 转换，生产环境不返回堆栈。

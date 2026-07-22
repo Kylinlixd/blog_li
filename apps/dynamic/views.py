@@ -24,6 +24,16 @@ from apps.category.serializers import CategorySerializer
 from django.db.models import Case, When, Value, FloatField
 
 
+def parse_limit(request, default=5):
+    try:
+        limit = int(request.query_params.get('limit', default))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({'limit': 'limit 必须是整数'}) from exc
+    if not 1 <= limit <= 100:
+        raise ValidationError({'limit': 'limit 必须在 1 到 100 之间'})
+    return limit
+
+
 class DynamicPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'pageSize'
@@ -167,20 +177,7 @@ class DynamicViewSet(ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
-            
-            # 使用F表达式原子性地增加浏览量
-            from django.db.models import F
-            from django.db import transaction
-            
-            with transaction.atomic():
-                # 原子性地增加浏览量
-                Dynamic.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
-                # 重新获取最新值
-                instance.refresh_from_db()
-            
-            # 序列化数据
-            serializer = self.get_serializer(instance)
-            
+
             # 返回数据
             return Response({
                 'code': 200,
@@ -390,12 +387,7 @@ class HotDynamicsView(ReadOnlyModelViewSet):
     permission_classes = []
     
     def list(self, request, *args, **kwargs):
-        try:
-            limit = int(request.query_params.get('limit', 5))
-        except (TypeError, ValueError) as exc:
-            raise ValidationError({'limit': 'limit 必须是整数'}) from exc
-        if not 1 <= limit <= 100:
-            raise ValidationError({'limit': 'limit 必须在 1 到 100 之间'})
+        limit = parse_limit(request)
         queryset = self.get_queryset()[:limit]
         serializer = self.get_serializer(queryset, many=True)
         return Response({
@@ -411,7 +403,7 @@ class RecentDynamicsView(ReadOnlyModelViewSet):
     permission_classes = []
     
     def list(self, request, *args, **kwargs):
-        limit = int(request.query_params.get('limit', 5))
+        limit = parse_limit(request)
         queryset = self.get_queryset()[:limit]
         serializer = self.get_serializer(queryset, many=True)
         return Response({

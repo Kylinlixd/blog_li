@@ -1,6 +1,4 @@
-from django.shortcuts import render
 from rest_framework.viewsets import ModelViewSet, ViewSet
-from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Category
 from .serializers import CategorySerializer, SimpleCategorySerializer
@@ -11,17 +9,6 @@ class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]
-
-    def get_permissions(self):
-        if self.action == 'list':
-            return [AllowAny()]  # 允许所有用户访问列表
-        return super().get_permissions()
-
-    def dispatch(self, request, *args, **kwargs):
-        """重载dispatch方法，对list请求跳过认证"""
-        if request.method.lower() == 'get' and self.action_map.get(request.method.lower()) == 'list':
-            self.authentication_classes = []
-        return super().dispatch(request, *args, **kwargs)
 
     def list(self, request, *args, **kwargs):
         # 获取搜索参数
@@ -45,7 +32,7 @@ class CategoryViewSet(ModelViewSet):
         # 添加动态计数
         queryset = queryset.annotate(
             dynamic_count=Count('dynamics', filter=Q(dynamics__status='published'))
-        )
+        ).order_by('sort', 'id')
         
         # 分页
         page = self.paginate_queryset(queryset)
@@ -109,7 +96,7 @@ class BlogCategoriesView(ViewSet):
         # 获取所有分类，并添加动态计数
         categories = Category.objects.annotate(
             dynamic_count=Count('dynamics', filter=Q(dynamics__status='published'))
-        )
+        ).order_by('sort', 'id')
         serializer = CategorySerializer(categories, many=True)
         response = Response({
             'code': 200,

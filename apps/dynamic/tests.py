@@ -58,6 +58,12 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.data['data']['category']['name'], self.category.name)
         self.assertEqual(response.data['data']['tags'][0]['name'], self.tag.name)
 
+    def test_reading_detail_does_not_mutate_view_count(self):
+        self.client.get(f'/blog/dynamics/{self.published.pk}/')
+
+        self.published.refresh_from_db()
+        self.assertEqual(self.published.view_count, 0)
+
     def test_view_action_increments_count(self):
         response = self.client.put(f'/blog/dynamics/{self.published.pk}/view/')
 
@@ -67,6 +73,12 @@ class DynamicAPITests(APITestCase):
 
     def test_hot_endpoint_rejects_invalid_limit(self):
         response = self.client.get('/blog/dynamics/hot/', {'limit': 'many'})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['code'], 400)
+
+    def test_recent_endpoint_rejects_invalid_limit(self):
+        response = self.client.get('/blog/dynamics/recent/', {'limit': 'many'})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['code'], 400)

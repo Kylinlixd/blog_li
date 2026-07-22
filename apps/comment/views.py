@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -60,9 +59,9 @@ class CommentViewSet(ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
     
-        # 前台请求只返回已审核和待审核的评论
+        # 前台请求只返回已审核的评论
         if self.request.path.startswith('/blog'):
-            queryset = queryset.filter(status__in=['approved', 'pending'])
+            queryset = queryset.filter(status='approved')
         else:
             # 后台请求根据 status 参数过滤
             status = self.request.query_params.get('status')
@@ -173,11 +172,11 @@ class BlogCommentView(APIView):
                 'message': 'dynamic_id 是必需的'
             }, status=status.HTTP_400_BAD_REQUEST)
             
-        # 只获取已通过和待审核的评论，过滤掉已拒绝的评论
+        # 待审核评论仅对提交者返回，不进入公开列表。
         queryset = Comment.objects.filter(
             dynamic_id=dynamic_id,
-            status__in=['approved', 'pending']  # 只包含已通过和待审核的评论
-        ).order_by('-created_at')  # 按创建时间倒序排列
+            status='approved'
+        ).order_by('-created_at')
         
         serializer = CommentSerializer(queryset, many=True)
         return Response({
@@ -191,24 +190,11 @@ class BlogCommentView(APIView):
     
     def post(self, request):
         """创建评论"""
-        print("收到 POST 请求:", request.data)  # 添加调试信息
         serializer = CommentCreateSerializer(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            try:
-                comment = serializer.save()
-                return Response({
-                    'code': 200,
-                    'message': '评论提交成功',
-                    'data': CommentSerializer(comment).data
-                })
-            except Exception as e:
-                print("保存评论时出错:", str(e))  # 添加调试信息
-                return Response({
-                    'code': 500,
-                    'message': f'保存评论失败: {str(e)}'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        print("序列化器验证失败:", serializer.errors)  # 添加调试信息
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.save()
         return Response({
-            'code': 400,
-            'message': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+            'code': 200,
+            'message': '评论提交成功',
+            'data': CommentSerializer(comment).data
+        })
