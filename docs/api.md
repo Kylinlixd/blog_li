@@ -1,689 +1,112 @@
 # API 文档
 
-## 通用说明
+基础地址：`http://127.0.0.1:8000`。除登录、注册和 `/blog/` 公共接口外，请求头需包含：
 
-### 1. 基础信息
-- 基础URL: `http://your-domain.com/api/v1`
-- 所有请求和响应均使用 JSON 格式
-- 时间格式: ISO 8601 (YYYY-MM-DDTHH:mm:ssZ)
-- API 版本: v1
+```http
+Authorization: Bearer <access_token>
+X-Request-ID: <uuid>
+```
 
-### 2. 认证方式
-- 使用 JWT (JSON Web Token) 认证
-- 在请求头中添加 `Authorization: Bearer <token>`
-- Token 有效期为 15 分钟
-- 支持 Token 刷新
+## 统一响应
 
-### 3. 响应格式
 ```json
 {
-    "code": 200,           // 状态码
-    "data": {},           // 响应数据
-    "message": "success"  // 响应消息
+  "code": 200,
+  "message": "success",
+  "data": {}
 }
 ```
 
-### 4. 错误码说明
-- 200: 成功
-- 400: 请求参数错误
-- 401: 未认证
-- 403: 无权限
-- 404: 资源不存在
-- 429: 请求过于频繁
-- 500: 服务器错误
+验证错误使用对应 HTTP 4xx 状态；未处理异常为 500。写请求在五分钟内重复使用同一 `X-Request-ID` 时返回 409。
 
-### 5. 错误响应示例
+## 认证
+
+### 登录
+
+```http
+POST /api/auth/login/
+Content-Type: application/json
+
+{"username":"admin","password":"your-password"}
+```
+
+成功响应的 `data` 包含 `access` 与 `refresh`。
+
+### 其他认证接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/auth/register/` | 注册 |
+| POST | `/api/token/refresh/` | 请求体传 `refresh` |
+| POST | `/api/auth/logout/` | 拉黑当前 access token |
+| GET | `/api/auth/info/` | 当前用户 |
+| PUT | `/api/auth/password/` | `old_password`、`new_password` |
+| PUT | `/api/auth/profile/` | 部分更新资料 |
+
+## 内容管理（需登录）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET/POST | `/api/dynamics/` | 列表、创建 |
+| GET/PUT/PATCH/DELETE | `/api/dynamics/{id}/` | 详情、更新、删除 |
+| GET/POST | `/api/categories/` | 分类列表、创建 |
+| PUT/PATCH/DELETE | `/api/categories/{id}/` | 分类更新、删除 |
+| GET/POST | `/api/tags/` | 标签列表、创建 |
+| PUT/PATCH/DELETE | `/api/tags/{id}/` | 标签更新、删除 |
+| GET/POST | `/api/comments/` | 评论列表、创建 |
+| PUT | `/api/comments/{id}/approve/` | 审核通过 |
+| PUT | `/api/comments/{id}/reject/` | 审核拒绝 |
+| GET | `/api/stats/` | 总量、近七天趋势、分类/标签统计 |
+
+内容列表查询支持 `page`、`pageSize`、`title`、`content`、`type`、`status`、`categoryId`、`tagIds` 和 `sort`。
+
+创建/更新内容示例：
+
 ```json
 {
-    "code": 400,
-    "message": "请求参数错误",
-    "errors": {
-        "username": ["该字段是必填项"],
-        "password": ["密码长度不能小于8位"]
-    }
+  "title": "Vue 请求层重构",
+  "content": "正文内容",
+  "type": "text",
+  "status": "published",
+  "mediaUrls": [],
+  "categoryId": 1,
+  "tags": [1, 2]
 }
 ```
 
-### 6. 限流说明
-- 普通用户：每分钟 60 次请求
-- 认证用户：每分钟 120 次请求
-- 超出限制返回 429 状态码
-- 限流响应头：
-  - X-RateLimit-Limit: 限制次数
-  - X-RateLimit-Remaining: 剩余次数
-  - X-RateLimit-Reset: 重置时间
+## 公开博客
 
-### 7. 分页参数
-- page: 页码（从1开始）
-- pageSize: 每页数量（默认20，最大100）
-- 响应格式：
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/blog/dynamics/` | 已发布内容分页 |
+| GET | `/blog/dynamics/{id}/` | 已发布内容详情 |
+| GET | `/blog/dynamics/hot/?limit=6` | 热门内容，`limit` 为 1–100 |
+| GET | `/blog/dynamics/recent/?limit=6` | 最近内容 |
+| PUT | `/blog/dynamics/{id}/view/` | 增加阅读量 |
+| POST | `/blog/dynamics/{id}/like/` | 按访问 IP 点赞 |
+| GET/POST | `/blog/comments/` | `dynamic_id` 查询或提交评论 |
+| GET | `/blog/categories/` | 分类及已发布内容数 |
+| GET | `/blog/categories/{id}/dynamics/` | 分类内容 |
+| GET | `/blog/tags/` | 标签列表 |
+| GET | `/blog/tags/{id}/dynamics/` | 标签内容 |
+| GET | `/blog/search/?keyword=vue` | 搜索 |
+
+内容分页响应：
+
 ```json
 {
-    "code": 200,
-    "data": {
-        "count": 100,      // 总数量
-        "next": "下一页URL",
-        "previous": "上一页URL",
-        "results": []      // 数据列表
-    },
-    "message": "success"
+  "code": 200,
+  "message": "success",
+  "data": {"total": 1, "items": []}
 }
 ```
 
-### 8. 重复请求验证
-- 所有 POST/PUT/DELETE 请求都需要包含 `X-Request-ID` 请求头
-- `X-Request-ID` 格式：UUID v4
-- 服务器会缓存请求ID 5分钟，防止重复提交
-- 重复请求响应：
-```json
-{
-    "code": 409,
-    "message": "请求重复提交",
-    "data": {
-        "request_id": "550e8400-e29b-41d4-a716-446655440000",
-        "first_request_time": "2024-03-20T10:00:00Z"
-    }
-}
-```
-
-### 9. 幂等性说明
-- GET 请求天然幂等
-- POST 请求：通过 `X-Request-ID` 保证幂等
-- PUT 请求：通过 `X-Request-ID` 保证幂等
-- DELETE 请求：通过 `X-Request-ID` 保证幂等
-
-## 用户认证
-
-### 1. 用户注册
-```http
-POST /users/register/
-
-请求体：
-{
-    "username": "string",     // 用户名
-    "password": "string",     // 密码
-    "email": "string",        // 邮箱
-    "nickname": "string"      // 昵称（可选）
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "access": "string",   // 访问令牌
-        "refresh": "string"   // 刷新令牌
-    },
-    "message": "注册成功"
-}
-```
-
-### 2. 用户登录
-```http
-POST /users/login/
-
-请求体：
-{
-    "username": "string",     // 用户名
-    "password": "string"      // 密码
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "access": "string",   // 访问令牌
-        "refresh": "string"   // 刷新令牌
-    },
-    "message": "登录成功"
-}
-```
-
-### 3. 刷新令牌
-```http
-POST /users/token/refresh/
-
-请求体：
-{
-    "refresh": "string"       // 刷新令牌
-}
-
-响应：
-{
-    "access": "string"        // 新的访问令牌
-}
-```
-
-### 4. 退出登录
-```http
-POST /users/logout/
-
-请求头：
-Authorization: Bearer <token>
-
-响应：
-{
-    "code": 200,
-    "message": "退出登录成功"
-}
-```
-
-### 5. 获取用户信息
-```http
-GET /users/info/
-
-请求头：
-Authorization: Bearer <token>
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "username": "string",
-        "email": "string",
-        "nickname": "string",
-        "avatar": "string",
-        "created_at": "string"
-    },
-    "message": "success"
-}
-```
-
-## 文章管理
-
-### 1. 获取文章列表
-```http
-GET /articles/
-
-请求参数：
-- page: 页码
-- pageSize: 每页数量
-- category: 分类ID（可选）
-- tag: 标签ID（可选）
-- search: 搜索关键词（可选）
-- sort: 排序字段（可选，如：created_at, updated_at）
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "count": 100,
-        "next": "string",
-        "previous": "string",
-        "results": [
-            {
-                "id": 1,
-                "title": "string",
-                "content": "string",
-                "category": {
-                    "id": 1,
-                    "name": "string"
-                },
-                "tags": [
-                    {
-                        "id": 1,
-                        "name": "string"
-                    }
-                ],
-                "created_at": "string",
-                "updated_at": "string"
-            }
-        ]
-    },
-    "message": "success"
-}
-```
-
-### 2. 创建文章
-```http
-POST /articles/
-
-请求头：
-Authorization: Bearer <token>
-
-请求体：
-{
-    "title": "string",        // 标题
-    "content": "string",      // 内容
-    "category": 1,            // 分类ID
-    "tags": [1, 2]           // 标签ID列表
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "title": "string",
-        "content": "string",
-        "category": {
-            "id": 1,
-            "name": "string"
-        },
-        "tags": [
-            {
-                "id": 1,
-                "name": "string"
-            }
-        ],
-        "created_at": "string",
-        "updated_at": "string"
-    },
-    "message": "文章创建成功"
-}
-```
-
-### 3. 获取文章详情
-```http
-GET /articles/{id}/
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "title": "string",
-        "content": "string",
-        "category": {
-            "id": 1,
-            "name": "string"
-        },
-        "tags": [
-            {
-                "id": 1,
-                "name": "string"
-            }
-        ],
-        "created_at": "string",
-        "updated_at": "string"
-    },
-    "message": "success"
-}
-```
-
-### 4. 更新文章
-```http
-PUT /articles/{id}/
-
-请求头：
-Authorization: Bearer <token>
-
-请求体：
-{
-    "title": "string",        // 标题
-    "content": "string",      // 内容
-    "category": 1,            // 分类ID
-    "tags": [1, 2]           // 标签ID列表
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "title": "string",
-        "content": "string",
-        "category": {
-            "id": 1,
-            "name": "string"
-        },
-        "tags": [
-            {
-                "id": 1,
-                "name": "string"
-            }
-        ],
-        "created_at": "string",
-        "updated_at": "string"
-    },
-    "message": "文章更新成功"
-}
-```
-
-### 5. 删除文章
-```http
-DELETE /articles/{id}/
-
-请求头：
-Authorization: Bearer <token>
-
-响应：
-{
-    "code": 200,
-    "message": "文章删除成功"
-}
-```
-
-## 分类管理
-
-### 1. 获取分类列表
-```http
-GET /categories/
-
-响应：
-{
-    "code": 200,
-    "data": [
-        {
-            "id": 1,
-            "name": "string",
-            "description": "string",
-            "created_at": "string"
-        }
-    ],
-    "message": "success"
-}
-```
-
-### 2. 创建分类
-```http
-POST /categories/
-
-请求头：
-Authorization: Bearer <token>
-
-请求体：
-{
-    "name": "string",         // 分类名称
-    "description": "string"   // 分类描述
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "name": "string",
-        "description": "string",
-        "created_at": "string"
-    },
-    "message": "分类创建成功"
-}
-```
-
-## 标签管理
-
-### 1. 获取标签列表
-```http
-GET /tags/
-
-响应：
-{
-    "code": 200,
-    "data": [
-        {
-            "id": 1,
-            "name": "string",
-            "created_at": "string"
-        }
-    ],
-    "message": "success"
-}
-```
-
-### 2. 创建标签
-```http
-POST /tags/
-
-请求头：
-Authorization: Bearer <token>
-
-请求体：
-{
-    "name": "string"          // 标签名称
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "name": "string",
-        "created_at": "string"
-    },
-    "message": "标签创建成功"
-}
-```
-
-## 评论系统
-
-### 1. 获取评论列表
-```http
-GET /comments/
-
-请求参数：
-- article: 文章ID
-- page: 页码
-- pageSize: 每页数量
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "count": 100,
-        "next": "string",
-        "previous": "string",
-        "results": [
-            {
-                "id": 1,
-                "content": "string",
-                "user": {
-                    "id": 1,
-                    "username": "string"
-                },
-                "article": 1,
-                "parent": null,
-                "created_at": "string"
-            }
-        ]
-    },
-    "message": "success"
-}
-```
-
-### 2. 发表评论
-```http
-POST /comments/
-
-请求头：
-Authorization: Bearer <token>
-
-请求体：
-{
-    "content": "string",      // 评论内容
-    "article": 1,            // 文章ID
-    "parent": null           // 父评论ID（可选）
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "content": "string",
-        "user": {
-            "id": 1,
-            "username": "string"
-        },
-        "article": 1,
-        "parent": null,
-        "created_at": "string"
-    },
-    "message": "评论成功"
-}
-```
-
-### 3. 删除评论
-```http
-DELETE /comments/{id}/
-
-请求头：
-Authorization: Bearer <token>
-
-响应：
-{
-    "code": 200,
-    "message": "评论删除成功"
-}
-```
-
-## 文件上传
-
-### 1. 上传文件
-```http
-POST /upload/
-
-请求头：
-Authorization: Bearer <token>
-Content-Type: multipart/form-data
-
-请求体：
-file: [文件]
-
-限制：
-- 文件大小：最大 10MB
-- 支持格式：jpg, jpeg, png, gif, pdf, doc, docx
-- 图片尺寸：最大 4096x4096 像素
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "name": "string",
-        "url": "string",
-        "size": 1024,
-        "type": "string",
-        "created_at": "string"
-    },
-    "message": "文件上传成功"
-}
-```
-
-### 2. 错误响应示例
-```json
-{
-    "code": 400,
-    "message": "文件上传失败",
-    "errors": {
-        "file": [
-            "文件大小不能超过10MB",
-            "不支持的文件格式",
-            "图片尺寸超出限制"
-        ]
-    }
-}
-```
-
-## 动态管理
-
-### 1. 获取动态列表
-```http
-GET /dynamics/
-
-请求参数：
-- page: 页码
-- pageSize: 每页数量
-- type: 动态类型（可选）
-- status: 状态（可选）
-- search: 搜索关键词（可选）
-- sort: 排序字段（可选）
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "count": 100,
-        "next": "string",
-        "previous": "string",
-        "results": [
-            {
-                "id": 1,
-                "title": "string",
-                "content": "string",
-                "type": "string",
-                "status": "string",
-                "created_at": "string",
-                "updated_at": "string"
-            }
-        ]
-    },
-    "message": "success"
-}
-```
-
-### 2. 创建动态
-```http
-POST /dynamics/
-
-请求头：
-Authorization: Bearer <token>
-
-请求体：
-{
-    "title": "string",        // 标题
-    "content": "string",      // 内容
-    "type": "string",         // 类型
-    "status": "string"        // 状态
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "title": "string",
-        "content": "string",
-        "type": "string",
-        "status": "string",
-        "created_at": "string",
-        "updated_at": "string"
-    },
-    "message": "动态创建成功"
-}
-```
-
-### 3. 更新动态
-```http
-PUT /dynamics/{id}/
-
-请求头：
-Authorization: Bearer <token>
-
-请求体：
-{
-    "title": "string",        // 标题
-    "content": "string",      // 内容
-    "type": "string",         // 类型
-    "status": "string"        // 状态
-}
-
-响应：
-{
-    "code": 200,
-    "data": {
-        "id": 1,
-        "title": "string",
-        "content": "string",
-        "type": "string",
-        "status": "string",
-        "created_at": "string",
-        "updated_at": "string"
-    },
-    "message": "动态更新成功"
-}
-```
-
-### 4. 删除动态
-```http
-DELETE /dynamics/{id}/
-
-请求头：
-Authorization: Bearer <token>
-
-响应：
-{
-    "code": 200,
-    "message": "动态删除成功"
-}
-``` 
+## 文件
+
+文件接口以 `/api/upload/` 为前缀且需要登录：
+
+- `POST /api/upload/upload/`：通用文件上传
+- `POST /api/upload/avatar/`：头像上传
+- `/api/upload/files/`：文件管理
+- `/api/upload/categories/`：文件分类
+- `/api/upload/tags/`：文件标签
