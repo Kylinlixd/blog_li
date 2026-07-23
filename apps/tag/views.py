@@ -5,6 +5,11 @@ from django.db.models import Count, Q
 from .models import Tag
 from .serializers import TagSerializer
 
+
+def is_public_blog_request(request):
+    return request.path.startswith('/blog/') or request.path.startswith('/api/blog/')
+
+
 # Create your views here.
 class TagViewSet(ModelViewSet):
     queryset = Tag.objects.all()
@@ -12,7 +17,7 @@ class TagViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_permissions(self):
-        if self.request.path.startswith('/blog/') and self.action == 'list':
+        if is_public_blog_request(self.request) and self.action == 'list':
             return [AllowAny()]
         return super().get_permissions()
     

@@ -29,6 +29,11 @@ class EnvironmentParsingTests(SimpleTestCase):
 
 
 class ProductionUrlTests(SimpleTestCase):
+    def test_public_blog_api_has_api_prefix_alias(self):
+        match = resolve('/api/blog/tags/')
+
+        self.assertEqual(match.url_name, 'api-blog-tags')
+
     def test_debug_url_is_not_public(self):
         with self.assertRaises(Resolver404):
             resolve('/debug/urls/')

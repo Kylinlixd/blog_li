@@ -24,6 +24,10 @@ from apps.category.serializers import CategorySerializer
 from django.db.models import Case, When, Value, FloatField
 
 
+def is_public_blog_request(request):
+    return request.path.startswith('/blog/') or request.path.startswith('/api/blog/')
+
+
 def parse_limit(request, default=5):
     try:
         limit = int(request.query_params.get('limit', default))
@@ -57,8 +61,8 @@ class DynamicViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]  # 默认需要认证
     
     def get_permissions(self):
-        is_public_blog = self.request.path.startswith('/blog/')
-        if is_public_blog and self.action in ['list', 'retrieve', 'like', 'view']:
+        is_public_blog = is_public_blog_request(self.request)
+        if is_public_blog and self.action in ['list', 'retrieve', 'adjacent', 'like', 'view']:
             return [AllowAny()]
         return super().get_permissions()
     
@@ -66,7 +70,7 @@ class DynamicViewSet(ModelViewSet):
         queryset = super().get_queryset()
         
         # 前台请求
-        if self.request.path.startswith('/blog'):
+        if is_public_blog_request(self.request):
             queryset = queryset.filter(status='published')
             # 前台搜索条件
             keyword = self.request.query_params.get('keyword', '')
@@ -237,7 +241,7 @@ class DynamicViewSet(ModelViewSet):
     
     def destroy(self, request, *args, **kwargs):
         # 如果是前台API，禁止删除操作
-        if request.path.startswith('/blog'):
+        if is_public_blog_request(request):
             return Response({
                 'code': 403,
                 'message': '前台API不支持删除操作'

@@ -41,8 +41,25 @@ router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'comments', CommentViewSet, basename='comment')
 
+public_blog_api_patterns = [
+    path('dynamics/', DynamicViewSet.as_view({'get': 'list'}), name='api-blog-dynamics'),
+    path('dynamics/hot/', HotDynamicsView.as_view({'get': 'list'}), name='api-hot-dynamics'),
+    path('dynamics/recent/', RecentDynamicsView.as_view({'get': 'list'}), name='api-recent-dynamics'),
+    path('dynamics/<int:pk>/', DynamicViewSet.as_view({'get': 'retrieve'}), name='api-blog-dynamic-detail'),
+    path('dynamics/<int:pk>/adjacent/', DynamicViewSet.as_view({'get': 'adjacent'}), name='api-dynamic-adjacent'),
+    path('dynamics/<int:pk>/like/', DynamicViewSet.as_view({'post': 'like'}), name='api-dynamic-like'),
+    path('dynamics/<int:pk>/view/', DynamicViewSet.as_view({'put': 'view'}), name='api-dynamic-view'),
+    path('comments/', BlogCommentView.as_view(), name='api-blog-comments'),
+    path('categories/', BlogCategoriesView.as_view({'get': 'list'}), name='api-blog-categories'),
+    path('categories/<int:categoryId>/dynamics/', CategoryDynamicsView.as_view(), name='api-category-dynamics'),
+    path('search/', SearchView.as_view(), name='api-blog-search'),
+    path('tags/', TagViewSet.as_view({'get': 'list'}), name='api-blog-tags'),
+    path('tags/<int:tagId>/dynamics/', TagDynamicsView.as_view(), name='api-tag-dynamics'),
+]
+
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/blog/', include(public_blog_api_patterns)),
     path('api/', include(router.urls)),
     
     # 认证相关
