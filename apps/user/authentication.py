@@ -39,8 +39,8 @@ class CustomJWTAuthentication(JWTAuthentication):
                             # 更新请求头中的访问令牌
                             request.META['HTTP_AUTHORIZATION'] = f'Bearer {new_access_token}'
                             
-                            # 返回新的认证结果
-                            return self.get_user(new_access_token), new_access_token
+                            validated_token = self.get_validated_token(new_access_token)
+                            return self.get_user(validated_token), validated_token
                         except (InvalidToken, TokenError):
                             pass
             
@@ -65,8 +65,8 @@ class CustomJWTAuthentication(JWTAuthentication):
                     # 更新请求头中的访问令牌
                     request.META['HTTP_AUTHORIZATION'] = f'Bearer {new_access_token}'
                     
-                    # 返回新的认证结果
-                    return self.get_user(new_access_token), new_access_token
+                    validated_token = self.get_validated_token(new_access_token)
+                    return self.get_user(validated_token), validated_token
                 except (InvalidToken, TokenError):
                     pass
             
@@ -75,9 +75,8 @@ class CustomJWTAuthentication(JWTAuthentication):
     
     def get_user(self, token):
         try:
-            # 解码令牌
-            payload = jwt.decode(
-                token,
+            payload = token.payload if hasattr(token, 'payload') else jwt.decode(
+                str(token),
                 settings.SIMPLE_JWT['SIGNING_KEY'],
                 algorithms=[settings.SIMPLE_JWT['ALGORITHM']]
             )
