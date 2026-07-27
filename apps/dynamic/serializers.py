@@ -223,6 +223,27 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
             
         return instance
 
+    def update(self, instance, validated_data):
+        media_urls = validated_data.pop('mediaUrls', serializers.empty)
+        file_ids = validated_data.pop('fileIds', serializers.empty)
+        category_id = validated_data.pop('categoryId', serializers.empty)
+        tag_ids = validated_data.pop('tags', serializers.empty)
+        validated_data.pop('createdAt', None)
+
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        if media_urls is not serializers.empty:
+            instance.media_urls = media_urls
+        if category_id is not serializers.empty:
+            instance.category_id = category_id
+        instance.save()
+
+        if file_ids is not serializers.empty:
+            instance.files.set(file_ids)
+        if tag_ids is not serializers.empty:
+            instance.tags.set(tag_ids)
+        return instance
+
 
 class DynamicUpdateSerializer(serializers.ModelSerializer):
     class Meta:

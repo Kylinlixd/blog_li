@@ -98,3 +98,28 @@ class DynamicAPITests(APITestCase):
 
         self.assertEqual(admin_data['images'], image.media_urls)
         self.assertEqual(simple_data['mediaUrls'], image.media_urls)
+
+    def test_update_preserves_category_tags_and_media(self):
+        self.client.force_authenticate(self.user)
+        second_category = Category.objects.create(name='后端实践')
+        second_tag = Tag.objects.create(name='Django')
+
+        response = self.client.put(f'/api/dynamics/{self.published.pk}/', {
+            'title': '更新后的标题',
+            'content': '更新后的正文',
+            'type': 'image',
+            'status': 'published',
+            'categoryId': second_category.pk,
+            'tags': [second_tag.pk],
+            'mediaUrls': ['/media/cover.png'],
+            'fileIds': [],
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.published.refresh_from_db()
+        self.assertEqual(self.published.category, second_category)
+        self.assertEqual(
+            list(self.published.tags.values_list('id', flat=True)),
+            [second_tag.pk],
+        )
+        self.assertEqual(self.published.media_urls, ['/media/cover.png'])
