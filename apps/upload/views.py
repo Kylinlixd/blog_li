@@ -311,9 +311,10 @@ class AvatarUploadView(APIView):
             })
             
         except Exception as e:
+            logger.exception('Avatar upload failed')
             return Response({
                 'code': 500,
-                'message': f'文件上传失败: {str(e)}'
+                'message': '文件上传失败，请稍后重试'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class FileUploadView(APIView):
@@ -421,5 +422,5 @@ class FileUploadView(APIView):
             logger.error(f"文件上传失败: {str(e)}", exc_info=True)
             return Response({
                 'code': 500,
-                'message': f'文件上传失败: {str(e)}'
+                'message': '文件上传失败，请稍后重试'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

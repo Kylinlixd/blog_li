@@ -176,9 +176,10 @@ class DynamicViewSet(ModelViewSet):
                 'data': serializer.data
             })
         except Exception as e:
+            logger.exception('Admin dynamic list failed')
             return Response({
                 'code': 500,
-                'message': str(e),
+                'message': '获取动态列表失败，请稍后重试',
                 'data': None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
@@ -209,9 +210,10 @@ class DynamicViewSet(ModelViewSet):
             })
             
         except Exception as e:
+            logger.exception('Admin dynamic detail failed')
             return Response({
                 'code': 500,
-                'message': str(e),
+                'message': '获取动态详情失败，请稍后重试',
                 'data': None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
@@ -310,9 +312,10 @@ class DynamicViewSet(ModelViewSet):
                 }
             })
         except Exception as e:
+            logger.exception('Dynamic view count update failed')
             return Response({
                 'code': 500, 
-                'message': f'增加浏览量失败: {str(e)}',
+                'message': '增加浏览量失败，请稍后重试',
                 'data': None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -382,9 +385,10 @@ class DynamicViewSet(ModelViewSet):
                 })
                 
         except Exception as e:
+            logger.exception('Dynamic like update failed')
             return Response({
                 'code': 500,
-                'message': str(e),
+                'message': '点赞失败，请稍后重试',
                 'data': None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -566,9 +570,10 @@ class DynamicListView(APIView):
             })
             
         except Exception as e:
+            logger.exception('Public dynamic list failed')
             return Response({
                 'code': 500,
-                'message': f'获取动态列表失败: {str(e)}'
+                'message': '获取动态列表失败，请稍后重试'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

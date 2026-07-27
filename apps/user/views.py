@@ -15,8 +15,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy as _
 from .authentication import CustomJWTAuthentication
 import jwt
+import logging
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -133,9 +135,10 @@ class UserViewSet(viewsets.ModelViewSet):
             return response
             
         except Exception as e:
+            logger.warning('Logout failed: %s', e)
             return Response({
                 'code': 400,
-                'message': str(e)
+                'message': '退出登录失败，请稍后重试'
             }, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['get'])
