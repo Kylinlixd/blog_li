@@ -40,3 +40,28 @@ class AuthTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['username'], self.user.username)
+
+    def test_anonymous_registration_is_denied(self):
+        response = self.client.post('/api/auth/register/', {
+            'username': 'visitor',
+            'email': 'visitor@example.com',
+            'password': 'safe-password-123',
+            'confirm_password': 'safe-password-123',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_admin_can_create_an_account(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=['is_staff'])
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post('/api/auth/register/', {
+            'username': 'writer',
+            'email': 'writer@example.com',
+            'password': 'safe-password-123',
+            'confirm_password': 'safe-password-123',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(get_user_model().objects.filter(username='writer').exists())

@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model, authenticate
 from .serializers import (
@@ -25,8 +25,10 @@ class UserViewSet(viewsets.ModelViewSet):
     authentication_classes = [CustomJWTAuthentication]
     
     def get_permissions(self):
-        if self.action in ['login', 'register']:
+        if self.action == 'login':
             return [AllowAny()]
+        if self.action == 'register':
+            return [IsAdminUser()]
         return super().get_permissions()
     
     @action(detail=False, methods=['post'])
