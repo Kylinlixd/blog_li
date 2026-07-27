@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -123,3 +124,10 @@ class DynamicAPITests(APITestCase):
             [second_tag.pk],
         )
         self.assertEqual(self.published.media_urls, ['/media/cover.png'])
+
+    @patch('apps.dynamic.views.Category.objects.get', side_effect=RuntimeError('database secret'))
+    def test_category_errors_do_not_expose_internal_exception(self, _category_get):
+        response = self.client.get('/api/blog/categories/1/dynamics/')
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertNotIn('database secret', str(response.data))

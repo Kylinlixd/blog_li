@@ -22,6 +22,10 @@ from django.conf import settings
 import os
 from apps.category.serializers import CategorySerializer
 from django.db.models import Case, When, Value, FloatField
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def is_public_blog_request(request):
@@ -458,10 +462,11 @@ class CategoryDynamicsView(APIView):
                 'code': 404,
                 'message': '分类不存在'
             }, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
+        except Exception:
+            logger.exception('Category dynamics request failed')
             return Response({
                 'code': 500,
-                'message': str(e)
+                'message': '服务暂时不可用，请稍后重试'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -508,10 +513,11 @@ class TagDynamicsView(APIView):
                 'code': 404,
                 'message': '标签不存在'
             }, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
+        except Exception:
+            logger.exception('Tag dynamics request failed')
             return Response({
                 'code': 500,
-                'message': str(e)
+                'message': '服务暂时不可用，请稍后重试'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -693,8 +699,9 @@ class SearchView(APIView):
                 }
             })
             
-        except Exception as e:
+        except Exception:
+            logger.exception('Search request failed')
             return Response({
                 'code': 500,
-                'message': str(e)
+                'message': '服务暂时不可用，请稍后重试'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
