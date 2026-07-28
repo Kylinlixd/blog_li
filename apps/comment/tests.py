@@ -59,6 +59,42 @@ class PublicCommentVisibilityTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(Comment.objects.filter(content='来自移动端的反馈').exists())
 
+    def test_clean_comment_is_approved_automatically(self):
+        response = self.client.post('/api/blog/comments/', {
+            'dynamic_id': self.dynamic.pk,
+            'content': '这篇文章很有帮助，谢谢分享',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['status'], 'approved')
+
+    def test_abusive_comment_waits_for_manual_review(self):
+        response = self.client.post('/api/blog/comments/', {
+            'dynamic_id': self.dynamic.pk,
+            'content': '你这个垃圾作者',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['status'], 'pending')
+
+    def test_violent_or_explicit_comment_is_rejected_with_guidance(self):
+        response = self.client.post('/api/blog/comments/', {
+            'dynamic_id': self.dynamic.pk,
+            'content': '这里包含色情内容',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('请规范言辞', response.data['message'])
+
+    def test_profanity_variants_are_rejected(self):
+        for content in ('操你妈', '操 你 妈', '操-你-妈'):
+            response = self.client.post('/api/blog/comments/', {
+                'dynamic_id': self.dynamic.pk,
+                'content': content,
+            }, format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn('请规范言辞', response.data['message'])
+
     def test_public_comment_rejects_unpublished_content(self):
         draft = Dynamic.objects.create(
             author=self.user,

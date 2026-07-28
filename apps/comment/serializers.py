@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 from .models import Comment
 from apps.dynamic.models import Dynamic
@@ -6,6 +8,18 @@ from apps.user.models import User
 
 def is_public_blog_request(request):
     return request.path.startswith(('/blog/', '/api/blog/'))
+
+
+REJECTED_CONTENT_TERMS = (
+    '杀人', '杀你', '砍死', '枪杀', '炸死', '血洗', '肢解', '虐杀',
+    '强奸', '轮奸', '色情', '淫秽', '裸体', '裸聊', '黄片', '约炮',
+    '操你妈', '操你媽', '操你母', '草泥马', '草泥馬', '你妈的', '你媽的',
+    '妈的', '媽的', 'cnm', 'nmsl', 'fuck', 'motherfucker', 'porn', 'sex video',
+)
+
+REVIEW_CONTENT_TERMS = (
+    '傻逼', '笨蛋', '白痴', '混蛋', '王八蛋', '狗屎', '垃圾', '废物', '蠢货', '贱人',
+)
 
 class CommentSerializer(serializers.ModelSerializer):
     dynamic_id = serializers.IntegerField(source='dynamic.id')
@@ -38,6 +52,13 @@ class CommentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ['content', 'dynamic_id', 'nickname', 'email']
+
+    def validate_content(self, value):
+        if is_public_blog_request(self.context['request']):
+            normalized = re.sub(r'[\W_]+', '', value.casefold(), flags=re.UNICODE)
+            if any(re.sub(r'[\W_]+', '', term.casefold(), flags=re.UNICODE) in normalized for term in REJECTED_CONTENT_TERMS):
+                raise serializers.ValidationError('评论包含暴力、涉黄或其他违规内容，请规范言辞后重试。')
+        return value
     
     def create(self, validated_data):
         # 如果是前台请求，使用默认用户（游客）
@@ -64,8 +85,7 @@ class CommentCreateSerializer(serializers.ModelSerializer):
             # 自动审核逻辑
             content = validated_data.get('content', '')
             # 检查评论内容是否包含敏感词
-            sensitive_words = ['傻逼', '笨蛋', '白痴', '混蛋', '王八蛋', '狗屎', '垃圾', '废物', '蠢货', '贱人']
-            contains_sensitive = any(word in content for word in sensitive_words)
+            contains_sensitive = any(word in content for word in REVIEW_CONTENT_TERMS)
             
             if contains_sensitive:
                 validated_data['status'] = 'pending'  # 包含敏感词，需要人工审核
