@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 
 
 class AccessLog(models.Model):
@@ -16,3 +18,8 @@ class AccessLog(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [models.Index(fields=['-created_at']), models.Index(fields=['ip_address', '-created_at'])]
+
+    @classmethod
+    def purge_expired(cls, retention_days=90):
+        cutoff = timezone.now() - timedelta(days=max(1, int(retention_days)))
+        return cls.objects.filter(created_at__lt=cutoff).delete()

@@ -3,6 +3,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from .models import AccessLog
 from .device import parse_user_agent
+from django.core.management import call_command
+from datetime import timedelta
+from django.utils import timezone
 from django.utils import timezone
 
 
@@ -21,6 +24,14 @@ class AccessLogTests(APITestCase):
     def test_device_parser_identifies_common_models(self):
         self.assertEqual(parse_user_agent('Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/UP1A)'), ('mobile', 'Pixel 8'))
         self.assertEqual(parse_user_agent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'), ('computer', 'Mac 电脑'))
+
+    def test_cleanup_command_removes_only_expired_rows(self):
+        expired = AccessLog.objects.create(ip_address='192.0.2.1', method='GET', path='/old', status_code=200)
+        AccessLog.objects.filter(pk=expired.pk).update(created_at=timezone.now() - timedelta(days=120))
+        AccessLog.objects.create(ip_address='192.0.2.2', method='GET', path='/new', status_code=200)
+        call_command('cleanup_access_logs', days=90)
+        self.assertFalse(AccessLog.objects.filter(path='/old').exists())
+        self.assertTrue(AccessLog.objects.filter(path='/new').exists())
 
     def test_logs_are_staff_only(self):
         response = self.client.get('/api/access-logs/')
