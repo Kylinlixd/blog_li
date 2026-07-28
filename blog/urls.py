@@ -32,6 +32,7 @@ from apps.tag.views import TagViewSet
 from apps.comment.views import CommentViewSet, BlogCommentView
 from apps.upload.views import FileUploadView, AvatarUploadView
 from apps.dashboard.views import StatsView
+from apps.access_log.views import AccessLogViewSet
 
 # 创建路由器
 router = DefaultRouter()
@@ -40,6 +41,7 @@ router.register(r'dynamics', DynamicViewSet, basename='dynamic')
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'comments', CommentViewSet, basename='comment')
+router.register(r'access-logs', AccessLogViewSet, basename='access-log')
 
 public_blog_api_patterns = [
     path('dynamics/', DynamicViewSet.as_view({'get': 'list'}), name='api-blog-dynamics'),

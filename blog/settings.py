@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     'apps.comment',
     'apps.upload',
     'apps.dashboard',
+    'apps.access_log',
 ]
 
 MIDDLEWARE = [
@@ -87,6 +88,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'blog.middleware.RequestIdMiddleware',
     'blog.middleware.APIExceptionMiddleware',
+    'blog.middleware.AccessLogMiddleware',
 ]
 
 ROOT_URLCONF = 'blog.urls'

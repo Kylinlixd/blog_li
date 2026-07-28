@@ -10,6 +10,28 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import uuid
 from django.core.cache import cache
 from django.utils import timezone
+from django.db import close_old_connections
+
+
+class AccessLogMiddleware(MiddlewareMixin):
+    """Persist API access metadata without logging static files or the log endpoint itself."""
+    def process_response(self, request, response):
+        if request.path.startswith('/api/') and not request.path.startswith('/api/access-logs/'):
+            try:
+                from apps.access_log.models import AccessLog
+                forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+                ip = (forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR')) or None
+                AccessLog.objects.create(
+                    ip_address=ip,
+                    method=request.method,
+                    path=request.path[:255],
+                    status_code=response.status_code,
+                    user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
+                    user=request.user if getattr(request.user, 'is_authenticated', False) else None,
+                )
+            except Exception:
+                close_old_connections()
+        return response
 
 
 class APIExceptionMiddleware(MiddlewareMixin):

@@ -1,0 +1,19 @@
+from django.contrib.auth import get_user_model
+from rest_framework import status
+from rest_framework.test import APITestCase
+from .models import AccessLog
+
+
+class AccessLogTests(APITestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='log-admin', password='safe-password-123', is_staff=True)
+
+    def test_api_request_records_forwarded_ip(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get('/api/stats/', HTTP_X_FORWARDED_FOR='203.0.113.8, 10.0.0.1')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(AccessLog.objects.filter(path='/api/stats/', ip_address='203.0.113.8', user=self.user).exists())
+
+    def test_logs_are_staff_only(self):
+        response = self.client.get('/api/access-logs/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

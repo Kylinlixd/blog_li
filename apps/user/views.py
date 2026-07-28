@@ -155,7 +155,8 @@ class UserViewSet(viewsets.ModelViewSet):
         user = request.user
         old_password = request.data.get('old_password')
         new_password = request.data.get('new_password')
-        
+        if not old_password or not new_password or len(new_password) < 6:
+            return Response({'code': 400, 'message': '新密码至少需要 6 个字符'}, status=status.HTTP_400_BAD_REQUEST)
         if not user.check_password(old_password):
             return Response({
                 'code': 400,
@@ -163,7 +164,7 @@ class UserViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         user.set_password(new_password)
-        user.save()
+        user.save(update_fields=['password', 'updated_at'] if hasattr(user, 'updated_at') else ['password'])
         
         return Response({
             'code': 200,
