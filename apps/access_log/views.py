@@ -1,8 +1,16 @@
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import BasePermission
 from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.pagination import PageNumberPagination
 from .models import AccessLog
 from .serializers import AccessLogSerializer
+
+
+class IsLogAdmin(BasePermission):
+    message = '仅管理员可以查看访问日志'
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser or user.role in {'admin', 'administrator'}))
 
 
 class AccessLogPagination(PageNumberPagination):
@@ -18,7 +26,7 @@ class AccessLogPagination(PageNumberPagination):
 class AccessLogViewSet(ReadOnlyModelViewSet):
     queryset = AccessLog.objects.select_related('user').all()
     serializer_class = AccessLogSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsLogAdmin]
     pagination_class = AccessLogPagination
 
     def get_queryset(self):

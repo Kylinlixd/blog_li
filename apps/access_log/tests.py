@@ -26,3 +26,15 @@ class AccessLogTests(APITestCase):
         response = self.client.get('/api/access-logs/', {'ip': '203.0.113.8', 'status': '2', 'path': 'stats'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['total'], 1)
+
+    def test_business_admin_role_can_read_logs_without_django_staff_flag(self):
+        role_admin = get_user_model().objects.create_user(username='role-admin', email='role-admin@example.com', password='safe-password-123', role='admin')
+        self.client.force_authenticate(role_admin)
+        response = self.client.get('/api/access-logs/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_regular_user_cannot_read_logs(self):
+        regular = get_user_model().objects.create_user(username='regular-reader', email='regular-reader@example.com', password='safe-password-123', role='user')
+        self.client.force_authenticate(regular)
+        response = self.client.get('/api/access-logs/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
