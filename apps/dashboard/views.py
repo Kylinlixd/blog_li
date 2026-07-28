@@ -11,6 +11,7 @@ from apps.category.models import Category
 from apps.comment.models import Comment
 from apps.dynamic.models import Dynamic
 from apps.tag.models import Tag
+from apps.access_log.models import AccessLog
 
 
 class StatsView(APIView):
@@ -47,5 +48,9 @@ class StatsView(APIView):
                     Tag.objects.annotate(dynamic_count=Count('dynamics'))
                     .values('name', 'dynamic_count')
                 ),
+                'access': {
+                    'requests': AccessLog.objects.filter(created_at__gte=seven_days_ago).count(),
+                    'unique_ips': AccessLog.objects.filter(created_at__gte=seven_days_ago).exclude(ip_address__isnull=True).values('ip_address').distinct().count(),
+                },
             },
         })

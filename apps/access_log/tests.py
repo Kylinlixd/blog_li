@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 from .models import AccessLog
+from django.utils import timezone
 
 
 class AccessLogTests(APITestCase):
@@ -17,3 +18,11 @@ class AccessLogTests(APITestCase):
     def test_logs_are_staff_only(self):
         response = self.client.get('/api/access-logs/')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_staff_can_filter_logs_by_ip_status_and_path(self):
+        AccessLog.objects.create(ip_address='203.0.113.8', method='GET', path='/api/stats/', status_code=200)
+        AccessLog.objects.create(ip_address='198.51.100.2', method='GET', path='/api/auth/info/', status_code=401)
+        self.client.force_authenticate(self.user)
+        response = self.client.get('/api/access-logs/', {'ip': '203.0.113.8', 'status': '2', 'path': 'stats'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['total'], 1)

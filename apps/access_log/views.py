@@ -20,3 +20,17 @@ class AccessLogViewSet(ReadOnlyModelViewSet):
     serializer_class = AccessLogSerializer
     permission_classes = [IsAdminUser]
     pagination_class = AccessLogPagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        ip = self.request.query_params.get('ip')
+        status_code = self.request.query_params.get('status')
+        path = self.request.query_params.get('path')
+        if ip:
+            queryset = queryset.filter(ip_address__icontains=ip.strip())
+        if status_code and status_code.strip() in {'2', '3', '4', '5'}:
+            family = int(status_code.strip()) * 100
+            queryset = queryset.filter(status_code__gte=family, status_code__lt=family + 100)
+        if path:
+            queryset = queryset.filter(path__icontains=path.strip())
+        return queryset
