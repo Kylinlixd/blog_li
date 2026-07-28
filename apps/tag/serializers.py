@@ -6,10 +6,11 @@ class TagSerializer(serializers.ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     dynamicCount = serializers.SerializerMethodField()
+    useCount = serializers.SerializerMethodField()
     
     class Meta:
         model = Tag
-        fields = ['id', 'name', 'description', 'sort', 'status', 'dynamicCount', 'createdAt', 'updatedAt']
+        fields = ['id', 'name', 'description', 'sort', 'status', 'dynamicCount', 'useCount', 'createdAt', 'updatedAt']
         extra_kwargs = {
             'name': {'required': True, 'allow_blank': False},
             'description': {'required': False},
@@ -22,6 +23,9 @@ class TagSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'dynamic_count'):
             return obj.dynamic_count
         return obj.dynamics.count()
+
+    def get_useCount(self, obj):
+        return self.get_dynamicCount(obj)
 
 class TagCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,4 +45,4 @@ class TagUpdateSerializer(serializers.ModelSerializer):
     def validate_name(self, value):
         if Tag.objects.filter(name=value).exclude(id=self.instance.id).exists():
             raise serializers.ValidationError("标签名称已存在")
-        return value 
+        return value
