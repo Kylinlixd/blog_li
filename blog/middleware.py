@@ -19,14 +19,19 @@ class AccessLogMiddleware(MiddlewareMixin):
         if request.path.startswith('/api/') and not request.path.startswith('/api/access-logs/'):
             try:
                 from apps.access_log.models import AccessLog
+                from apps.access_log.device import parse_user_agent
                 forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
                 ip = (forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR')) or None
+                user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
+                device_type, device_model = parse_user_agent(user_agent)
                 AccessLog.objects.create(
                     ip_address=ip,
                     method=request.method,
                     path=request.path[:255],
                     status_code=response.status_code,
-                    user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
+                    user_agent=user_agent,
+                    device_type=device_type,
+                    device_model=device_model,
                     user=request.user if getattr(request.user, 'is_authenticated', False) else None,
                 )
             except Exception:

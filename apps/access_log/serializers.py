@@ -7,4 +7,4 @@ class AccessLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AccessLog
-        fields = ['id', 'ip_address', 'method', 'path', 'status_code', 'user_agent', 'username', 'created_at']
+        fields = ['id', 'ip_address', 'method', 'path', 'status_code', 'device_type', 'device_model', 'user_agent', 'username', 'created_at']

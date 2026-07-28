@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 from .models import AccessLog
+from .device import parse_user_agent
 from django.utils import timezone
 
 
@@ -11,9 +12,15 @@ class AccessLogTests(APITestCase):
 
     def test_api_request_records_forwarded_ip(self):
         self.client.force_authenticate(self.user)
-        response = self.client.get('/api/stats/', HTTP_X_FORWARDED_FOR='203.0.113.8, 10.0.0.1')
+        response = self.client.get('/api/stats/', HTTP_X_FORWARDED_FOR='203.0.113.8, 10.0.0.1', HTTP_USER_AGENT='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(AccessLog.objects.filter(path='/api/stats/', ip_address='203.0.113.8', user=self.user).exists())
+        log = AccessLog.objects.get(path='/api/stats/', ip_address='203.0.113.8', user=self.user)
+        self.assertEqual((log.device_type, log.device_model), ('mobile', 'iPhone'))
+
+    def test_device_parser_identifies_common_models(self):
+        self.assertEqual(parse_user_agent('Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/UP1A)'), ('mobile', 'Pixel 8'))
+        self.assertEqual(parse_user_agent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'), ('computer', 'Mac 电脑'))
 
     def test_logs_are_staff_only(self):
         response = self.client.get('/api/access-logs/')
