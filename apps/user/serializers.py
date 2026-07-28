@@ -58,8 +58,15 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['nickname', 'email', 'bio', 'avatar']
-        read_only_fields = ['username']
+        fields = ['username', 'nickname', 'email', 'bio', 'avatar']
+
+    def validate_username(self, value):
+        value = value.strip()
+        if len(value) < 4:
+            raise serializers.ValidationError('用户名不能少于 4 个字符')
+        if User.objects.filter(username=value).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError('用户名已存在')
+        return value
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)

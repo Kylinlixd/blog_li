@@ -70,6 +70,7 @@ class AuthTests(APITestCase):
         self.client.force_authenticate(self.user)
 
         response = self.client.put('/api/auth/profile/', {
+            'username': 'editor-renamed',
             'nickname': '编辑后的昵称',
             'email': 'updated@example.com',
             'bio': '新的个人简介',
@@ -78,6 +79,7 @@ class AuthTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
+        self.assertEqual(self.user.username, 'editor-renamed')
         self.assertEqual(self.user.nickname, '编辑后的昵称')
         self.assertEqual(response.data['data']['email'], 'updated@example.com')
 
