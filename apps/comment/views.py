@@ -12,6 +12,10 @@ from .serializers import (
     CommentUpdateSerializer
 )
 
+
+def is_public_blog_request(request):
+    return request.path.startswith(('/blog/', '/api/blog/'))
+
 # Create your views here.
 class CommentPagination(PageNumberPagination):
     page_size = 10
@@ -38,14 +42,14 @@ class CommentViewSet(ModelViewSet):
     
     def get_permissions(self):
         # 如果是前台请求，允许匿名访问列表和创建
-        if self.request.path.startswith('/blog'):
+        if is_public_blog_request(self.request):
             return [AllowAny()]
         # 如果是后台请求，需要认证
         return super().get_permissions()
     
     def dispatch(self, request, *args, **kwargs):
         """重载dispatch方法，对前台请求跳过认证"""
-        if request.path.startswith('/blog'):
+        if is_public_blog_request(request):
             self.authentication_classes = []
         return super().dispatch(request, *args, **kwargs)
     
@@ -60,7 +64,7 @@ class CommentViewSet(ModelViewSet):
         queryset = super().get_queryset()
     
         # 前台请求只返回已审核的评论
-        if self.request.path.startswith('/blog'):
+        if is_public_blog_request(self.request):
             queryset = queryset.filter(status='approved')
         else:
             # 后台请求根据 status 参数过滤

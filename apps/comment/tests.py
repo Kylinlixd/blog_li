@@ -48,6 +48,17 @@ class PublicCommentVisibilityTests(APITestCase):
         self.assertEqual(comment.author.username, 'guest')
         self.assertNotEqual(comment.author_id, self.user.pk)
 
+    def test_api_blog_prefix_allows_anonymous_comment_submission(self):
+        response = self.client.post('/api/blog/comments/', {
+            'dynamic_id': self.dynamic.pk,
+            'content': '来自移动端的反馈',
+            'nickname': '移动访客',
+            'email': 'mobile@example.com',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(Comment.objects.filter(content='来自移动端的反馈').exists())
+
     def test_public_comment_rejects_unpublished_content(self):
         draft = Dynamic.objects.create(
             author=self.user,

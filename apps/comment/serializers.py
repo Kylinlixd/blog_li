@@ -3,6 +3,10 @@ from .models import Comment
 from apps.dynamic.models import Dynamic
 from apps.user.models import User
 
+
+def is_public_blog_request(request):
+    return request.path.startswith(('/blog/', '/api/blog/'))
+
 class CommentSerializer(serializers.ModelSerializer):
     dynamic_id = serializers.IntegerField(source='dynamic.id')
     createTime = serializers.DateTimeField(source='created_at')
@@ -37,7 +41,7 @@ class CommentCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         # 如果是前台请求，使用默认用户（游客）
-        if self.context['request'].path.startswith('/blog'):
+        if is_public_blog_request(self.context['request']):
             dynamic_id = validated_data.pop('dynamic_id')
             try:
                 validated_data['dynamic'] = Dynamic.objects.get(
