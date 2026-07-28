@@ -45,10 +45,17 @@ class UserViewSet(viewsets.ModelViewSet):
     def login(self, request):
         serializer = UserLoginSerializer(data=request.data)
         if serializer.is_valid():
-            username = serializer.validated_data['username']
+            username = serializer.validated_data['username'].strip()
             password = serializer.validated_data['password']
             
             user = authenticate(username=username, password=password)
+            # 修改用户名后，允许使用当前邮箱或昵称登录，避免旧用户名缓存导致账号无法找回。
+            if user is None:
+                candidate = User.objects.filter(email__iexact=username).first()
+                if candidate is None:
+                    candidate = User.objects.filter(nickname=username).first()
+                if candidate is not None and candidate.check_password(password):
+                    user = candidate
             if user:
                 # 生成令牌
                 refresh = RefreshToken.for_user(user)

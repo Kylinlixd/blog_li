@@ -21,6 +21,16 @@ class AuthTests(APITestCase):
         self.assertIn('access', response.data['data'])
         self.assertIn('refresh', response.data['data'])
 
+    def test_login_accepts_email_after_username_change(self):
+        self.user.email = 'editor@example.com'
+        self.user.save(update_fields=['email'])
+        response = self.client.post('/api/auth/login/', {
+            'username': ' EDITOR@EXAMPLE.COM ',
+            'password': 'correct-horse-battery-staple'
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('access', response.data['data'])
+
     def test_user_info_requires_authentication(self):
         response = self.client.get('/api/auth/info/')
 
