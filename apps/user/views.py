@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth.password_validation import validate_password
 from .serializers import (
     UserSerializer, UserLoginSerializer, UserRegisterSerializer,
     UserProfileSerializer, ChangePasswordSerializer, CustomTokenObtainPairSerializer
@@ -25,6 +26,13 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [CustomJWTAuthentication]
+
+    @staticmethod
+    def _serializer_message(errors):
+        return '；'.join(
+            f'{field}: {"、".join(str(item) for item in messages)}'
+            for field, messages in errors.items()
+        )
     
     def get_permissions(self):
         if self.action == 'login':
@@ -153,14 +161,24 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['put'])
     def password(self, request):
         user = request.user
-        old_password = request.data.get('old_password')
-        new_password = request.data.get('new_password')
-        if not old_password or not new_password or len(new_password) < 6:
-            return Response({'code': 400, 'message': '新密码至少需要 6 个字符'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = ChangePasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({'code': 400, 'message': self._serializer_message(serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
+
+        old_password = serializer.validated_data['old_password']
+        new_password = serializer.validated_data['new_password']
         if not user.check_password(old_password):
             return Response({
                 'code': 400,
                 'message': '原密码错误'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            validate_password(new_password, user)
+        except Exception as exc:
+            return Response({
+                'code': 400,
+                'message': exc.messages if hasattr(exc, 'messages') else str(exc)
             }, status=status.HTTP_400_BAD_REQUEST)
         
         user.set_password(new_password)
@@ -174,13 +192,14 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['put'])
     def profile(self, request):
         user = request.user
-        serializer = self.get_serializer(user, data=request.data, partial=True)
+        serializer = UserProfileSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            user.refresh_from_db()
             return Response({
                 'code': 200,
                 'data': {
-                    **serializer.data,
+                    **UserSerializer(user).data,
                     'created_at': user.date_joined,
                     'updated_at': user.last_login
                 },
@@ -189,7 +208,7 @@ class UserViewSet(viewsets.ModelViewSet):
         else:
             return Response({
                 'code': 400,
-                'message': serializer.errors
+                'message': self._serializer_message(serializer.errors)
             }, status=status.HTTP_400_BAD_REQUEST)
 
 class CustomTokenObtainPairView(TokenObtainPairView):

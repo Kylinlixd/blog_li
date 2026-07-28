@@ -65,3 +65,30 @@ class AuthTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(get_user_model().objects.filter(username='writer').exists())
+
+    def test_authenticated_user_can_update_profile(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.put('/api/auth/profile/', {
+            'nickname': '编辑后的昵称',
+            'email': 'updated@example.com',
+            'bio': '新的个人简介',
+            'avatar': 'https://example.com/avatar.png',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.nickname, '编辑后的昵称')
+        self.assertEqual(response.data['data']['email'], 'updated@example.com')
+
+    def test_authenticated_user_can_change_password(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.put('/api/auth/password/', {
+            'old_password': 'correct-horse-battery-staple',
+            'new_password': 'New-safe-password-123',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('New-safe-password-123'))
