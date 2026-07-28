@@ -1,0 +1,8 @@
+[Unit]
+Description=Clean expired blog access logs
+After=blog-li.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/blog_li
+ExecStart=/opt/blog_li/.venv/bin/python /opt/blog_li/manage.py cleanup_access_logs
