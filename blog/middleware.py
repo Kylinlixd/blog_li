@@ -11,6 +11,7 @@ import uuid
 from django.core.cache import cache
 from django.utils import timezone
 from django.db import close_old_connections
+from blog.request_utils import get_client_ip
 
 
 class AccessLogMiddleware(MiddlewareMixin):
@@ -20,8 +21,7 @@ class AccessLogMiddleware(MiddlewareMixin):
             try:
                 from apps.access_log.models import AccessLog
                 from apps.access_log.device import parse_user_agent
-                forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
-                ip = (forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR')) or None
+                ip = get_client_ip(request)
                 user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
                 device_type, device_model = parse_user_agent(user_agent)
                 AccessLog.objects.create(

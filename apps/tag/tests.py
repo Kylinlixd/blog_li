@@ -14,6 +14,6 @@ class TagPermissionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_public_tag_list_remains_available(self):
-        response = self.client.get('/blog/tags/')
+        response = self.client.get('/api/blog/tags/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

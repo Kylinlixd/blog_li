@@ -55,22 +55,14 @@ class DynamicSerializer(serializers.ModelSerializer):
     
     def get_mediaUrls(self, obj):
         # 获取关联的文件
-        files = obj.files.all()
-        logger.debug(f"动态 {obj.id} 的关联文件数量: {files.count()}")
+        files = [f for f in obj.files.all() if f.file_type == obj.type] if obj.type in {'image', 'audio', 'video'} else []
+        logger.debug(f"动态 {obj.id} 的关联文件数量: {len(files)}")
         
         if not files:
             logger.debug(f"动态 {obj.id} 没有关联文件")
             return []
-            
-        # 根据动态类型过滤文件
-        if obj.type == 'image':
-            files = files.filter(file_type='image')
-        elif obj.type == 'audio':
-            files = files.filter(file_type='audio')
-        elif obj.type == 'video':
-            files = files.filter(file_type='video')
-            
-        logger.debug(f"动态 {obj.id} 过滤后的文件数量: {files.count()}")
+
+        logger.debug(f"动态 {obj.id} 过滤后的文件数量: {len(files)}")
         logger.debug(f"动态类型: {obj.type}")
         
         # 返回文件信息列表
@@ -272,22 +264,14 @@ class DynamicListSerializer(serializers.ModelSerializer):
     
     def get_comments(self, obj):
         # 获取评论数量
-        return obj.comments.count() if hasattr(obj, 'comments') else 0
+        return getattr(obj, 'comments_count', obj.comments.count() if hasattr(obj, 'comments') else 0)
         
     def get_mediaUrls(self, obj):
         # 获取关联的文件
-        files = obj.files.all()
+        files = [f for f in obj.files.all() if f.file_type == obj.type] if obj.type in {'image', 'audio', 'video'} else []
         
         if not files:
             return []
-            
-        # 根据动态类型过滤文件
-        if obj.type == 'image':
-            files = files.filter(file_type='image')
-        elif obj.type == 'audio':
-            files = files.filter(file_type='audio')
-        elif obj.type == 'video':
-            files = files.filter(file_type='video')
             
         # 返回文件信息列表
         return [{

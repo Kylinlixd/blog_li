@@ -1,0 +1,7 @@
+[Unit]
+Description=Back up Kylin Blog database and media
+After=mysql.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/blog_li/ops/backup/blog-backup.sh

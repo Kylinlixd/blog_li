@@ -29,14 +29,14 @@ class PublicCommentVisibilityTests(APITestCase):
         )
 
     def test_public_list_only_returns_approved_comments(self):
-        response = self.client.get('/blog/comments/', {'dynamic_id': self.dynamic.pk})
+        response = self.client.get('/api/blog/comments/', {'dynamic_id': self.dynamic.pk})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['total'], 1)
         self.assertEqual(response.data['data']['list'][0]['content'], '公开评论')
 
     def test_public_comment_uses_a_dedicated_guest_account(self):
-        response = self.client.post('/blog/comments/', {
+        response = self.client.post('/api/blog/comments/', {
             'dynamic_id': self.dynamic.pk,
             'content': '来自访客的反馈',
             'nickname': '访客',
@@ -103,7 +103,7 @@ class PublicCommentVisibilityTests(APITestCase):
             status='draft',
         )
 
-        response = self.client.post('/blog/comments/', {
+        response = self.client.post('/api/blog/comments/', {
             'dynamic_id': draft.pk,
             'content': '不应写入',
         }, format='json')

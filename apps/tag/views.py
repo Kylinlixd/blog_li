@@ -4,10 +4,7 @@ from rest_framework.response import Response
 from django.db.models import Count, Q
 from .models import Tag
 from .serializers import TagSerializer
-
-
-def is_public_blog_request(request):
-    return request.path.startswith('/blog/') or request.path.startswith('/api/blog/')
+from blog.request_utils import is_public_blog_request
 
 
 # Create your views here.

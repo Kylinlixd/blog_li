@@ -11,10 +11,7 @@ from .serializers import (
     CommentSerializer, CommentCreateSerializer,
     CommentUpdateSerializer
 )
-
-
-def is_public_blog_request(request):
-    return request.path.startswith(('/blog/', '/api/blog/'))
+from blog.request_utils import is_public_blog_request
 
 # Create your views here.
 class CommentPagination(PageNumberPagination):
@@ -36,7 +33,7 @@ class CommentPagination(PageNumberPagination):
         })
 
 class CommentViewSet(ModelViewSet):
-    queryset = Comment.objects.all()
+    queryset = Comment.objects.select_related('author', 'dynamic')
     permission_classes = [IsAuthenticated]
     pagination_class = CommentPagination
     
@@ -180,7 +177,7 @@ class BlogCommentView(APIView):
         queryset = Comment.objects.filter(
             dynamic_id=dynamic_id,
             status='approved'
-        ).order_by('-created_at')
+        ).select_related('author').order_by('-created_at')
         
         serializer = CommentSerializer(queryset, many=True)
         return Response({

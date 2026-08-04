@@ -159,6 +159,10 @@ if 'test' in sys.argv:
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': ':memory:',
     }
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0
 elif env_bool('DJANGO_USE_SQLITE', False):
     DATABASES = {
         'default': {

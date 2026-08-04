@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
+from django.core.cache import cache
 
 from apps.category.models import Category
 from apps.dynamic.models import Dynamic
@@ -11,6 +12,7 @@ from apps.tag.models import Tag
 
 class DynamicAPITests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user = get_user_model().objects.create_user(
             username='editor',
             email='editor@example.com',
@@ -35,7 +37,7 @@ class DynamicAPITests(APITestCase):
         )
 
     def test_public_list_only_returns_published_content(self):
-        response = self.client.get('/blog/dynamics/')
+        response = self.client.get('/api/blog/dynamics/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['total'], 1)
@@ -47,39 +49,67 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_public_search_matches_title(self):
-        response = self.client.get('/blog/dynamics/', {'keyword': '请求层'})
+        response = self.client.get('/api/blog/dynamics/', {'keyword': '请求层'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['total'], 1)
 
     def test_detail_includes_category_and_tags(self):
-        response = self.client.get(f'/blog/dynamics/{self.published.pk}/')
+        response = self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['category']['name'], self.category.name)
         self.assertEqual(response.data['data']['tags'][0]['name'], self.tag.name)
 
     def test_reading_detail_does_not_mutate_view_count(self):
-        self.client.get(f'/blog/dynamics/{self.published.pk}/')
+        self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
 
         self.published.refresh_from_db()
         self.assertEqual(self.published.view_count, 0)
 
     def test_view_action_increments_count(self):
-        response = self.client.put(f'/blog/dynamics/{self.published.pk}/view/')
+        response = self.client.put(f'/api/blog/dynamics/{self.published.pk}/view/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.published.refresh_from_db()
         self.assertEqual(self.published.view_count, 1)
 
+    def test_view_action_deduplicates_by_ip(self):
+        for _ in range(2):
+            self.client.put(f'/api/blog/dynamics/{self.published.pk}/view/')
+
+        self.published.refresh_from_db()
+        self.assertEqual(self.published.view_count, 1)
+
+    def test_like_uses_forwarded_ip_for_deduplication(self):
+        first = self.client.post(
+            f'/api/blog/dynamics/{self.published.pk}/like/',
+            HTTP_X_FORWARDED_FOR='203.0.113.5',
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        duplicate = self.client.post(
+            f'/api/blog/dynamics/{self.published.pk}/like/',
+            HTTP_X_FORWARDED_FOR='203.0.113.5',
+        )
+        self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+
+        another_ip = self.client.post(
+            f'/api/blog/dynamics/{self.published.pk}/like/',
+            HTTP_X_FORWARDED_FOR='198.51.100.9',
+        )
+        self.assertEqual(another_ip.status_code, status.HTTP_200_OK)
+        self.published.refresh_from_db()
+        self.assertEqual(self.published.like_count, 2)
+
     def test_hot_endpoint_rejects_invalid_limit(self):
-        response = self.client.get('/blog/dynamics/hot/', {'limit': 'many'})
+        response = self.client.get('/api/blog/dynamics/hot/', {'limit': 'many'})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['code'], 400)
 
     def test_recent_endpoint_rejects_invalid_limit(self):
-        response = self.client.get('/blog/dynamics/recent/', {'limit': 'many'})
+        response = self.client.get('/api/blog/dynamics/recent/', {'limit': 'many'})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['code'], 400)

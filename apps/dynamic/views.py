@@ -7,7 +7,7 @@ from apps.dynamic.serializers import (
     AdminDynamicSerializer, SimpleDynamicSerializer,
     DynamicCreateSerializer, DynamicUpdateSerializer, DynamicListSerializer
 )
-from django.db.models import Q, F, Count
+from django.db.models import Q, F, Count, Prefetch
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
@@ -22,14 +22,12 @@ from django.conf import settings
 import os
 from apps.category.serializers import CategorySerializer
 from django.db.models import Case, When, Value, FloatField
+from django.core.cache import cache
+from blog.request_utils import get_client_ip, is_public_blog_request
 import logging
 
 
 logger = logging.getLogger(__name__)
-
-
-def is_public_blog_request(request):
-    return request.path.startswith('/blog/') or request.path.startswith('/api/blog/')
 
 
 def parse_limit(request, default=5):
@@ -60,7 +58,7 @@ class DynamicPagination(PageNumberPagination):
 
 
 class DynamicViewSet(ModelViewSet):
-    queryset = Dynamic.objects.select_related('author', 'category').prefetch_related('tags', 'files')
+    queryset = Dynamic.objects.select_related('author', 'category').prefetch_related('tags', 'files', 'comments')
     pagination_class = DynamicPagination
     permission_classes = [IsAuthenticated]  # 默认需要认证
     
@@ -71,11 +69,11 @@ class DynamicViewSet(ModelViewSet):
         return super().get_permissions()
     
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().annotate(comments_count=Count('comments', distinct=True))
         
         # 前台请求
         if is_public_blog_request(self.request):
-            queryset = queryset.filter(status='published')
+            queryset = queryset.filter(status='published').order_by('-created_at')
             # 前台搜索条件
             keyword = self.request.query_params.get('keyword', '')
             if keyword:
@@ -287,19 +285,21 @@ class DynamicViewSet(ModelViewSet):
     def view(self, request, pk=None):
         try:
             dynamic = self.get_object()
-            ip_address = request.META.get('REMOTE_ADDR', '')
-            
-            # 使用F表达式原子性地增加浏览量
-            from django.db.models import F
-            from django.db import transaction
-            
-            with transaction.atomic():
-                # 获取更新前的值
-                old_view_count = dynamic.view_count
-                # 原子性地增加浏览量
-                Dynamic.objects.filter(pk=dynamic.pk).update(view_count=F('view_count') + 1)
-                # 重新获取最新值
-                dynamic.refresh_from_db()
+            ip_address = get_client_ip(request) or 'unknown'
+            cache_key = f'dynamic_view:{dynamic.pk}:{ip_address}'
+            if not cache.add(cache_key, True, 86400):
+                return Response({
+                    'code': 200,
+                    'message': '浏览量已记录',
+                    'data': {
+                        'id': dynamic.id,
+                        'view_count': dynamic.view_count
+                    }
+                })
+
+            old_view_count = dynamic.view_count
+            Dynamic.objects.filter(pk=dynamic.pk).update(view_count=F('view_count') + 1)
+            dynamic.refresh_from_db()
             
             return Response({
                 'code': 200,
@@ -323,66 +323,52 @@ class DynamicViewSet(ModelViewSet):
     def like(self, request, pk=None):
         try:
             dynamic = self.get_object()
-            ip_address = request.META.get('REMOTE_ADDR')
-            
-            # 检查 IP 是否已经点赞
-            if dynamic.ip_likes.filter(ip_address=ip_address).exists():
-                return Response({
-                    'code': 400,
-                    'message': '您已经点过赞了',
-                    'data': {
-                        'liked': True,
-                        'like_count': dynamic.like_count
-                    }
-                })
-            
-            # 检查用户是否已登录
-            if request.user.is_authenticated:
-                # 检查用户是否已点赞
-                if dynamic.liked_by.filter(id=request.user.id).exists():
-                    # 取消点赞
-                    dynamic.liked_by.remove(request.user)
-                    dynamic.like_count = max(0, dynamic.like_count - 1)
-                    dynamic.save()
-                    # 删除 IP 点赞记录
-                    dynamic.ip_likes.filter(ip_address=ip_address).delete()
-                    return Response({
-                        'code': 200,
-                        'message': '取消点赞成功',
-                        'data': {
-                            'liked': False,
-                            'like_count': dynamic.like_count
-                        }
-                    })
-                else:
-                    # 添加点赞
-                    dynamic.liked_by.add(request.user)
+            ip_address = get_client_ip(request) or 'unknown'
+            user = request.user if request.user.is_authenticated else None
+
+            from django.db import transaction
+            with transaction.atomic():
+                dynamic = Dynamic.objects.select_for_update().get(pk=dynamic.pk)
+                if user is not None:
+                    if dynamic.liked_by.filter(id=user.id).exists():
+                        dynamic.liked_by.remove(user)
+                        dynamic.like_count = max(0, dynamic.like_count - 1)
+                        dynamic.save(update_fields=['like_count'])
+                        dynamic.ip_likes.filter(ip_address=ip_address).delete()
+                        return Response({
+                            'code': 200,
+                            'message': '取消点赞成功',
+                            'data': {
+                                'liked': False,
+                                'like_count': dynamic.like_count
+                            }
+                        })
+                    dynamic.liked_by.add(user)
                     dynamic.like_count += 1
-                    dynamic.save()
-                    # 创建 IP 点赞记录
+                    dynamic.save(update_fields=['like_count'])
+                    dynamic.ip_likes.get_or_create(ip_address=ip_address)
+                else:
+                    if dynamic.ip_likes.filter(ip_address=ip_address).exists():
+                        return Response({
+                            'code': 400,
+                            'message': '您已经点过赞了',
+                            'data': {
+                                'liked': True,
+                                'like_count': dynamic.like_count
+                            }
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                    dynamic.like_count += 1
+                    dynamic.save(update_fields=['like_count'])
                     dynamic.ip_likes.create(ip_address=ip_address)
-                    return Response({
-                        'code': 200,
-                        'message': '点赞成功',
-                        'data': {
-                            'liked': True,
-                            'like_count': dynamic.like_count
-                        }
-                    })
-            else:
-                # 未登录用户只能点赞一次
-                dynamic.like_count += 1
-                dynamic.save()
-                # 创建 IP 点赞记录
-                dynamic.ip_likes.create(ip_address=ip_address)
-                return Response({
-                    'code': 200,
-                    'message': '点赞成功',
-                    'data': {
-                        'liked': True,
-                        'like_count': dynamic.like_count
-                    }
-                })
+
+            return Response({
+                'code': 200,
+                'message': '点赞成功',
+                'data': {
+                    'liked': True,
+                    'like_count': dynamic.like_count
+                }
+            })
                 
         except Exception as e:
             logger.exception('Dynamic like update failed')
@@ -394,7 +380,7 @@ class DynamicViewSet(ModelViewSet):
 
 
 class HotDynamicsView(ReadOnlyModelViewSet):
-    queryset = Dynamic.objects.filter(status='published').order_by('-view_count')
+    queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', 'files', 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-view_count')
     serializer_class = DynamicListSerializer
     permission_classes = []
     
@@ -410,7 +396,7 @@ class HotDynamicsView(ReadOnlyModelViewSet):
 
 
 class RecentDynamicsView(ReadOnlyModelViewSet):
-    queryset = Dynamic.objects.filter(status='published').order_by('-created_at')
+    queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', 'files', 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-created_at')
     serializer_class = DynamicListSerializer
     permission_classes = []
     
@@ -438,6 +424,8 @@ class CategoryDynamicsView(APIView):
             dynamics = Dynamic.objects.filter(
                 category=category,
                 status='published'
+            ).select_related('category').prefetch_related('tags', 'files', 'comments').annotate(
+                comments_count=Count('comments', distinct=True)
             ).order_by('-created_at')
             
             # 序列化分类信息
@@ -487,6 +475,8 @@ class TagDynamicsView(APIView):
             dynamics = Dynamic.objects.filter(
                 tags=tag,
                 status='published'
+            ).select_related('category').prefetch_related('tags', 'files', 'comments').annotate(
+                comments_count=Count('comments', distinct=True)
             ).order_by('-created_at')
             
             # 分页
@@ -585,8 +575,13 @@ class SearchView(APIView):
         try:
             # 获取查询参数
             keyword = request.GET.get('keyword', '')
-            page = int(request.GET.get('page', 1))
-            page_size = int(request.GET.get('pageSize', 10))
+            try:
+                page = int(request.GET.get('page', 1))
+                page_size = int(request.GET.get('pageSize', 10))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({'page': 'page 必须是整数'}) from exc
+            if not 1 <= page_size <= 100:
+                raise ValidationError({'pageSize': 'pageSize 必须在 1 到 100 之间'})
             search_type = request.GET.get('searchType', 'all')
             include_tags = request.GET.get('includeTags', 'true').lower() == 'true'
             include_categories = request.GET.get('includeCategories', 'true').lower() == 'true'
@@ -599,7 +594,16 @@ class SearchView(APIView):
                 Q(title__icontains=keyword) | 
                 Q(content__icontains=keyword),
                 status='published'
+            ).select_related('category').prefetch_related(
+                Prefetch(
+                    'tags',
+                    queryset=Tag.objects.annotate(
+                        published_count=Count('dynamics', filter=Q(dynamics__status='published'))
+                    ),
+                )
             ).annotate(
+                comments_count=Count('comments', distinct=True),
+                category_published_count=Count('category__dynamics', filter=Q(category__dynamics__status='published'), distinct=True),
                 relevance=Case(
                     When(title__icontains=keyword, then=Value(0.9)),
                     When(content__icontains=keyword, then=Value(0.7)),
@@ -620,17 +624,17 @@ class SearchView(APIView):
                     'updatedAt': dynamic.updated_at,
                     'views': dynamic.view_count,
                     'likes': dynamic.like_count,
-                    'comments': dynamic.comments.count() if hasattr(dynamic, 'comments') else 0,
+                    'comments': getattr(dynamic, 'comments_count', dynamic.comments.count() if hasattr(dynamic, 'comments') else 0),
                     'relevance': dynamic.relevance,
                     'tags': [{
                         'id': tag.id,
                         'name': tag.name,
-                        'count': tag.dynamics.filter(status='published').count()
+                        'count': getattr(tag, 'published_count', tag.dynamics.filter(status='published').count())
                     } for tag in dynamic.tags.all()],
                     'category': {
                         'id': dynamic.category.id,
                         'name': dynamic.category.name,
-                        'count': dynamic.category.dynamics.filter(status='published').count()
+                        'count': getattr(dynamic, 'category_published_count', dynamic.category.dynamics.filter(status='published').count())
                     } if dynamic.category else None
                 })
             

@@ -42,6 +42,23 @@ def validate_file_type(file, file_type):
     验证文件类型
     """
     try:
+        allowed_extensions = {
+            'image': {'jpg', 'jpeg', 'png', 'gif'},
+            'video': {'mp4', 'mov', 'avi'},
+            'document': {'pdf', 'doc', 'docx', 'xls', 'xlsx'},
+        }
+        image_signatures = {
+            'jpg': (b'\xff\xd8\xff',),
+            'jpeg': (b'\xff\xd8\xff',),
+            'png': (b'\x89PNG\r\n\x1a\n',),
+            'gif': (b'GIF87a', b'GIF89a'),
+        }
+
+        extension = os.path.splitext(file.name)[1].lower().lstrip('.')
+        if file_type in allowed_extensions and extension not in allowed_extensions[file_type]:
+            logger.warning(f"不支持的文件扩展名: {extension}, 期望类型: {file_type}")
+            return False, f"不支持的文件扩展名，请上传{file_type}类型的文件"
+
         # 获取文件的MIME类型
         content_type = file.content_type
         logger.debug(f"文件MIME类型: {content_type}")
@@ -63,7 +80,19 @@ def validate_file_type(file, file_type):
         if file_type in allowed_types and content_type not in allowed_types[file_type]:
             logger.warning(f"不支持的文件类型: {content_type}, 期望类型: {file_type}")
             return False, f"不支持的文件类型，请上传{file_type}类型的文件"
-        
+
+        if file_type == 'image':
+            try:
+                file.seek(0)
+                head = file.read(16)
+                file.seek(0)
+            except Exception:
+                head = b''
+            signatures = image_signatures.get(extension, ())
+            if signatures and not any(head.startswith(signature) for signature in signatures):
+                logger.warning(f"文件内容与图片格式不符: {extension}")
+                return False, "文件内容与图片格式不符"
+
         return True, None
     except Exception as e:
         logger.error(f"验证文件类型时出错: {str(e)}")
@@ -77,7 +106,7 @@ def validate_file_size(file, file_type):
         # 定义不同类型文件的大小限制（单位：字节）
         size_limits = {
             'image': 5 * 1024 * 1024,  # 5MB
-            'video': 100 * 1024 * 1024,  # 100MB
+            'video': 50 * 1024 * 1024,  # 50MB，与 Nginx client_max_body_size 对齐
             'document': 20 * 1024 * 1024,  # 20MB
             'other': 10 * 1024 * 1024,  # 10MB
             'avatars': 2 * 1024 * 1024  # 2MB

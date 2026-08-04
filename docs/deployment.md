@@ -1,6 +1,6 @@
 # 后端部署指南
 
-推荐拓扑：Nginx 提供 HTTPS、前端静态资源与媒体文件，反向代理 `/api/` 和 `/blog/` 到 Gunicorn；Gunicorn 只监听本机。
+推荐拓扑：Nginx 提供 HTTPS、前端静态资源与媒体文件，反向代理 `/api/` 到 Gunicorn；Gunicorn 只监听本机。
 
 ## 1. 准备
 
@@ -85,16 +85,7 @@ location /api/ {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
 
-location /blog/ {
-    # HTML 页面由前端站点处理，其余请求进入公开 API。
-    if ($http_accept ~* "text/html") {
-        rewrite ^ /index.html last;
-    }
-    proxy_pass http://127.0.0.1:8000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-}
+# 公开 API 统一在 /api/blog/；/blog/ 由前端站点按 SPA 路由处理。
 
 location /media/ {
     alias /srv/blog_li/media/;

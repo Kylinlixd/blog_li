@@ -4,10 +4,7 @@ from rest_framework import serializers
 from .models import Comment
 from apps.dynamic.models import Dynamic
 from apps.user.models import User
-
-
-def is_public_blog_request(request):
-    return request.path.startswith(('/blog/', '/api/blog/'))
+from blog.request_utils import is_public_blog_request
 
 
 REJECTED_CONTENT_TERMS = (

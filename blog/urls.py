@@ -22,7 +22,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from django.http import JsonResponse
 
-from apps.user.views import UserViewSet, CustomTokenObtainPairView
+from apps.user.views import UserViewSet
 from apps.dynamic.views import (
     DynamicViewSet, HotDynamicsView, RecentDynamicsView, 
     CategoryDynamicsView, SearchView, TagDynamicsView
@@ -72,20 +72,6 @@ urlpatterns = [
     path('api/auth/info/', UserViewSet.as_view({'get': 'info'}), name='user-info'),
     path('api/auth/password/', UserViewSet.as_view({'put': 'password'}), name='change-password'),
     path('api/auth/profile/', UserViewSet.as_view({'put': 'profile'}), name='update-profile'),
-    
-    # 博客前台API - 直接添加所有路由，不使用 include
-    path('blog/dynamics/', DynamicViewSet.as_view({'get': 'list'}), name='blog-dynamics'),
-    path('blog/dynamics/hot/', HotDynamicsView.as_view({'get': 'list'}), name='hot-dynamics'),
-    path('blog/dynamics/recent/', RecentDynamicsView.as_view({'get': 'list'}), name='recent-dynamics'),
-    path('blog/dynamics/<int:pk>/', DynamicViewSet.as_view({'get': 'retrieve'}), name='blog-dynamic-detail'),
-    path('blog/dynamics/<int:pk>/like/', DynamicViewSet.as_view({'post': 'like'}), name='dynamic-like'),
-    path('blog/dynamics/<int:pk>/view/', DynamicViewSet.as_view({'put': 'view'}), name='dynamic-view'),
-    path('blog/comments/', BlogCommentView.as_view(), name='blog-comments'),
-    path('blog/categories/', BlogCategoriesView.as_view({'get': 'list'}), name='blog-categories'),
-    path('blog/categories/<int:categoryId>/dynamics/', CategoryDynamicsView.as_view(), name='category-dynamics'),
-    path('blog/search/', SearchView.as_view(), name='blog-search'),
-    path('blog/tags/', TagViewSet.as_view({'get': 'list'}), name='blog-tags'),
-    path('blog/tags/<int:tagId>/dynamics/', TagDynamicsView.as_view(), name='tag-dynamics'),
     
     # 文件上传API
     path('api/upload/', include('apps.upload.urls')),

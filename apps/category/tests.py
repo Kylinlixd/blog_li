@@ -14,7 +14,7 @@ class CategoryPermissionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_public_category_list_remains_available(self):
-        response = self.client.get('/blog/categories/')
+        response = self.client.get('/api/blog/categories/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data'][0]['name'], '工程实践')
