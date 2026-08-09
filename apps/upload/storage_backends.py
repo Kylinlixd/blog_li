@@ -3,12 +3,13 @@
 import hashlib
 import os
 import re
+import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
-from astrastore_xion import XionClient, XionConfig, XionError
+from astrastore_xion import XionClient, XionConfig, XionError, XionHTTPError
 from django.conf import settings
 
 
@@ -138,12 +139,36 @@ class XionStorageBackend:
         )
 
     def open(self, storage_key):
-        raise NotImplementedError("Xion download routing is added with the view integration")
+        client = self._client()
+        temporary = tempfile.SpooledTemporaryFile(max_size=1024 * 1024, mode="w+b")
+        try:
+            status = client.get_file_status(storage_key)
+            client.download_file(storage_key, temporary)
+            temporary.seek(0)
+        except XionHTTPError as error:
+            temporary.close()
+            if error.status_code == 404:
+                raise StorageNotFound("AstraStoreXion 文件不存在") from error
+            raise StorageUnavailable("AstraStoreXion 下载失败") from error
+        except XionError as error:
+            temporary.close()
+            raise StorageUnavailable("AstraStoreXion 下载失败") from error
+        finally:
+            client.close()
+        return OpenedObject(
+            stream=temporary,
+            size=status.size,
+            content_type=status.content_type,
+        )
 
     def delete(self, storage_key):
         client = self._client()
         try:
             client.delete_file(storage_key)
+        except XionHTTPError as error:
+            if error.status_code == 404:
+                return
+            raise StorageUnavailable("AstraStoreXion 删除失败") from error
         except XionError as error:
             raise StorageUnavailable("AstraStoreXion 删除失败") from error
         finally:

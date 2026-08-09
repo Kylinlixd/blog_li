@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     FileUploadView, AvatarUploadView,
     FileManagementViewSet, FileCategoryViewSet,
-    FileTagViewSet
+    FileTagViewSet, PublicFileDownloadView
 )
 
 router = DefaultRouter()
@@ -15,4 +15,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('upload/', FileUploadView.as_view(), name='file-upload'),
     path('avatar/', AvatarUploadView.as_view(), name='avatar-upload'),
-] 
+    path('public/<int:pk>/', PublicFileDownloadView.as_view(), name='public-file-download'),
+]
