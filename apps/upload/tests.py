@@ -1,6 +1,8 @@
 import importlib
+import importlib.util
 import os
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -170,6 +172,21 @@ class XionConfigurationCheckTests(SimpleTestCase):
         config = UploadConfig("apps.upload", importlib.import_module("apps.upload"))
         with self.assertRaises(ImproperlyConfigured):
             config.ready()
+
+
+class HTTPSStorageSmokeContractTests(SimpleTestCase):
+    def test_duplicate_nosniff_headers_from_app_and_proxy_are_accepted(self):
+        script_path = Path(__file__).resolve().parents[2] / "ops" / "https-storage-smoke.py"
+        spec = importlib.util.spec_from_file_location("https_storage_smoke", script_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        response = SimpleNamespace(headers={
+            "Content-Disposition": "inline; filename=cover.png",
+            "Content-Type": "image/png",
+            "X-Content-Type-Options": "nosniff, nosniff",
+        })
+
+        module.require_public_headers(response, "cover.png")
 
 
 class FileStorageViewTests(APITestCase):

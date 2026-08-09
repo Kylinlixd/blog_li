@@ -51,7 +51,12 @@ def require_response(response: requests.Response, expected: int, operation: str)
 def require_public_headers(response: requests.Response, filename: str):
     disposition = response.headers.get("Content-Disposition", "").lower()
     content_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
-    if response.headers.get("X-Content-Type-Options", "").lower() != "nosniff":
+    content_type_options = {
+        value.strip().lower()
+        for value in response.headers.get("X-Content-Type-Options", "").split(",")
+        if value.strip()
+    }
+    if content_type_options != {"nosniff"}:
         raise RuntimeError(f"missing nosniff header: {filename}")
     if filename.endswith(".png"):
         if not disposition.startswith("inline;") or content_type != "image/png":
