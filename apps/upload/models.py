@@ -50,10 +50,29 @@ class UploadFile(models.Model):
         ('other', '其他')
     )
 
+    STORAGE_BACKEND_CHOICES = (
+        ('local', '本地存储'),
+        ('xion', 'AstraStoreXion'),
+    )
+
     name = models.CharField(max_length=255, help_text="文件名")
     file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES, help_text="文件类型")
     file_size = models.BigIntegerField(help_text="文件大小(字节)")
     file_url = models.CharField(max_length=500, help_text="文件URL")
+    storage_backend = models.CharField(
+        max_length=16,
+        choices=STORAGE_BACKEND_CHOICES,
+        default='local',
+        help_text="文件字节所在的存储后端",
+    )
+    storage_key = models.CharField(
+        max_length=500,
+        null=True,
+        blank=True,
+        help_text="存储后端中的对象标识；历史本地记录可为空",
+    )
+    checksum = models.CharField(max_length=64, blank=True, help_text="SHA-256校验和")
+    content_type = models.CharField(max_length=255, blank=True, help_text="文件MIME类型")
     category = models.ForeignKey(FileCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='files')
     tags = models.ManyToManyField(FileTag, blank=True, related_name='files')
     uploader = models.ForeignKey(User, on_delete=models.CASCADE, related_name='uploaded_files')
