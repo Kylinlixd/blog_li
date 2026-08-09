@@ -4,6 +4,7 @@ from apps.user.serializers import UserSerializer
 from apps.category.serializers import CategorySerializer
 from apps.tag.serializers import TagSerializer
 from apps.upload.serializers import UploadFileSerializer
+from apps.upload.models import UploadFile
 import json
 import logging
 
@@ -32,7 +33,7 @@ class MediaFileSerializer(serializers.ModelSerializer):
     size = serializers.IntegerField(source='file_size')
     
     class Meta:
-        model = 'upload.UploadFile'
+        model = UploadFile
         fields = ['id', 'name', 'file_type', 'file_url', 'url', 'size', 'created_at']
 
 

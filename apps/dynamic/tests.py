@@ -8,6 +8,7 @@ from apps.category.models import Category
 from apps.dynamic.models import Dynamic
 from apps.dynamic.serializers import AdminDynamicSerializer, SimpleDynamicSerializer
 from apps.tag.models import Tag
+from apps.upload.models import UploadFile
 
 
 class DynamicAPITests(APITestCase):
@@ -113,6 +114,23 @@ class DynamicAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['code'], 400)
+
+    def test_recent_endpoint_serializes_attached_cover_file(self):
+        cover = UploadFile.objects.create(
+            name='cover.png',
+            file_type='image',
+            file_size=123,
+            file_url='/api/upload/public/1/',
+            uploader=self.user,
+            is_public=True,
+        )
+        self.published.files.add(cover)
+
+        response = self.client.get('/api/blog/dynamics/recent/', {'limit': 1})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data'][0]['files'][0]['name'], cover.name)
+        self.assertEqual(response.data['data'][0]['files'][0]['file_url'], cover.file_url)
 
     def test_media_serializers_use_the_current_media_urls_field(self):
         image = Dynamic.objects.create(
