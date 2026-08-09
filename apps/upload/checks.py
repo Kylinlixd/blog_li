@@ -2,15 +2,22 @@ from django.conf import settings
 from django.core.checks import Error, Tags, register
 
 
-@register(Tags.security, deploy=True)
-def check_xion_storage_settings(app_configs, **kwargs):
+def missing_xion_settings():
     if not settings.XION_STORAGE_ENABLED:
         return []
-    missing = []
-    if not settings.XION_BASE_URL:
-        missing.append("XION_BASE_URL")
-    if not settings.XION_SERVICE_TOKEN:
-        missing.append("XION_SERVICE_TOKEN")
+    return [
+        name
+        for name, value in (
+            ("XION_BASE_URL", settings.XION_BASE_URL),
+            ("XION_SERVICE_TOKEN", settings.XION_SERVICE_TOKEN),
+        )
+        if not value
+    ]
+
+
+@register(Tags.security)
+def check_xion_storage_settings(app_configs, **kwargs):
+    missing = missing_xion_settings()
     if not missing:
         return []
     return [Error(

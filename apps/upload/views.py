@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from .models import UploadFile, FileCategory, FileTag
 from .serializers import (
@@ -31,6 +32,12 @@ from .storage_backends import (
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
+
+
+class FilePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 def ensure_upload_directories():
     """
@@ -162,6 +169,7 @@ class FileManagementViewSet(ModelViewSet):
     queryset = UploadFile.objects.all()
     serializer_class = UploadFileSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = FilePagination
     
     def get_queryset(self):
         queryset = UploadFile.objects.all()
@@ -467,10 +475,29 @@ def _file_response(file_obj, as_attachment):
             'data': None,
         }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-    response = FileResponse(opened.stream, as_attachment=as_attachment, filename=file_obj.name)
-    response['Content-Type'] = file_obj.content_type or opened.content_type
+    content_type = file_obj.content_type or opened.content_type or 'application/octet-stream'
+    safe_inline = content_type.lower().split(';', 1)[0].strip() in {
+        'image/gif',
+        'image/jpeg',
+        'image/png',
+        'audio/mpeg',
+        'audio/mp4',
+        'audio/ogg',
+        'audio/wav',
+        'audio/x-wav',
+        'video/mp4',
+        'video/quicktime',
+        'video/webm',
+    }
+    response = FileResponse(
+        opened.stream,
+        as_attachment=as_attachment or not safe_inline,
+        filename=file_obj.name,
+    )
+    response['Content-Type'] = content_type if safe_inline else 'application/octet-stream'
     response['Content-Length'] = str(opened.size)
     response['ETag'] = f'"sha256-{file_obj.checksum}"' if file_obj.checksum else ''
+    response['X-Content-Type-Options'] = 'nosniff'
     return response
 
 

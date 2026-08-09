@@ -49,7 +49,7 @@ XION_STORAGE_ENABLED=False
 XION_BASE_URL=http://127.0.0.1:8081
 XION_SERVICE_TOKEN=
 XION_CONNECT_TIMEOUT=5
-XION_READ_TIMEOUT=60
+XION_READ_TIMEOUT=300
 XION_MAX_RETRIES=2
 BLOG_FILE_MAX_UPLOAD_BYTES=52428800
 ```
@@ -79,6 +79,18 @@ python manage.py test
 
 迁移 `upload.0003_uploadfile_storage_fields` 只增加后端、对象键、校验和与 MIME 字段；现有行默认 `storage_backend=local`。
 
+### 存储冒烟测试
+
+`ops/production-storage-smoke.py` 是分阶段的进程内持久性检查，用于在服务重启和功能开关切换前后验证同一批对象；它不会经过 Nginx、Gunicorn 或 JWT，不能替代公网检查。
+
+部署完成后，从服务器执行真实 HTTPS、JWT、Nginx、Gunicorn、Django 与 Xion 全链路检查。命令会创建随机密码的临时用户，上传四类 fixture，逐一校验认证/公开下载并清理所有记录：
+
+```bash
+python ops/https-storage-smoke.py \
+  --base-url https://leexd.top \
+  --fixture-dir /path/to/generated-fixtures
+```
+
 ## 3. systemd 示例
 
 ```ini
@@ -91,7 +103,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/srv/blog_li
 EnvironmentFile=/srv/blog_li/.env
-ExecStart=/srv/blog_li/.venv/bin/gunicorn blog.wsgi:application --workers 3 --bind 127.0.0.1:8000 --access-logfile - --error-logfile -
+ExecStart=/srv/blog_li/.venv/bin/gunicorn blog.wsgi:application --workers 3 --bind 127.0.0.1:8000 --timeout 330 --access-logfile - --error-logfile -
 Restart=on-failure
 TimeoutStopSec=30
 

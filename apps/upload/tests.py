@@ -1,3 +1,4 @@
+import importlib
 import os
 import tempfile
 from types import SimpleNamespace
@@ -6,6 +7,9 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import DatabaseError
+from django.core.management import call_command
+from django.core.management.base import SystemCheckError
+from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APITestCase
 
@@ -146,6 +150,27 @@ class XionConfigurationCheckTests(SimpleTestCase):
 
         self.assertEqual([], check_xion_storage_settings(None))
 
+    @override_settings(
+        XION_STORAGE_ENABLED=True,
+        XION_BASE_URL="http://127.0.0.1:8081",
+        XION_SERVICE_TOKEN="",
+    )
+    def test_regular_system_check_rejects_enabled_xion_without_token(self):
+        with self.assertRaises(SystemCheckError):
+            call_command("check", verbosity=0)
+
+    @override_settings(
+        XION_STORAGE_ENABLED=True,
+        XION_BASE_URL="http://127.0.0.1:8081",
+        XION_SERVICE_TOKEN="",
+    )
+    def test_application_startup_rejects_enabled_xion_without_token(self):
+        from apps.upload.apps import UploadConfig
+
+        config = UploadConfig("apps.upload", importlib.import_module("apps.upload"))
+        with self.assertRaises(ImproperlyConfigured):
+            config.ready()
+
 
 class FileStorageViewTests(APITestCase):
     def setUp(self):
@@ -240,7 +265,9 @@ class FileStorageViewTests(APITestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(b"abc", b"".join(response.streaming_content))
-        self.assertEqual("text/plain", response["Content-Type"])
+        self.assertEqual("application/octet-stream", response["Content-Type"])
+        self.assertTrue(response["Content-Disposition"].startswith("attachment;"))
+        self.assertEqual("nosniff", response["X-Content-Type-Options"])
 
     @patch("apps.upload.views.backend_for_file")
     def test_public_download_allows_anonymous_reader(self, backend_factory):
@@ -259,6 +286,44 @@ class FileStorageViewTests(APITestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(b"public", b"".join(response.streaming_content))
+        self.assertTrue(response["Content-Disposition"].startswith("attachment;"))
+        self.assertEqual("application/octet-stream", response["Content-Type"])
+        self.assertEqual("nosniff", response["X-Content-Type-Options"])
+
+    @patch("apps.upload.views.backend_for_file")
+    def test_public_safe_raster_image_can_render_inline(self, backend_factory):
+        uploaded = self._create_file(
+            name="cover.png",
+            content_type="image/png",
+            is_public=True,
+        )
+        stream = tempfile.SpooledTemporaryFile()
+        stream.write(b"png")
+        stream.seek(0)
+        backend_factory.return_value.open.return_value = OpenedObject(
+            stream=stream,
+            size=3,
+            content_type="image/png",
+        )
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(f"/api/upload/public/{uploaded.id}/")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("image/png", response["Content-Type"])
+        self.assertTrue(response["Content-Disposition"].startswith("inline;"))
+
+    def test_file_list_honors_type_and_page_size_contract(self):
+        for index in range(12):
+            self._create_file(name=f"image-{index}.png", file_type="image")
+        for index in range(3):
+            self._create_file(name=f"document-{index}.pdf", file_type="document")
+
+        response = self.client.get("/api/upload/files/?type=image&page_size=20")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(12, response.data["count"])
+        self.assertEqual(12, len(response.data["results"]))
 
     def test_private_file_is_not_available_from_public_route(self):
         uploaded = self._create_file(is_public=False)

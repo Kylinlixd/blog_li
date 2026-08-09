@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.core.exceptions import ImproperlyConfigured
 
 
 class UploadConfig(AppConfig):
@@ -6,4 +7,10 @@ class UploadConfig(AppConfig):
     name = 'apps.upload'
 
     def ready(self):
-        from . import checks  # noqa: F401
+        from . import checks
+
+        missing = checks.missing_xion_settings()
+        if missing:
+            raise ImproperlyConfigured(
+                "启用 AstraStoreXion 时缺少必要配置: " + ", ".join(missing)
+            )
