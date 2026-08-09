@@ -21,10 +21,14 @@ class UploadFileSerializer(serializers.ModelSerializer):
         model = UploadFile
         fields = [
             'id', 'name', 'file_type', 'file_size', 'file_url',
+            'storage_backend', 'checksum', 'content_type',
             'uploader', 'description', 'is_public', 'download_count',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'file_url', 'file_size', 'download_count', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'file_url', 'file_size', 'storage_backend',
+            'checksum', 'content_type', 'download_count', 'created_at', 'updated_at'
+        ]
 
 class FileListSerializer(serializers.Serializer):
     items = UploadFileSerializer(many=True)
@@ -54,4 +58,4 @@ class FileUploadSerializer(serializers.Serializer):
         if file_type in allowed_types and value.content_type not in allowed_types[file_type]:
             raise serializers.ValidationError(f"不支持的文件类型，请上传{file_type}类型的文件")
         
-        return value 
+        return value

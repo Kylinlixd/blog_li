@@ -314,6 +314,15 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# AstraStoreXion remains disabled until the loopback service and token are ready.
+XION_STORAGE_ENABLED = env_bool('XION_STORAGE_ENABLED', False)
+XION_BASE_URL = os.getenv('XION_BASE_URL', 'http://127.0.0.1:8081').rstrip('/')
+XION_SERVICE_TOKEN = os.getenv('XION_SERVICE_TOKEN', '')
+XION_CONNECT_TIMEOUT = float(os.getenv('XION_CONNECT_TIMEOUT', '5'))
+XION_READ_TIMEOUT = float(os.getenv('XION_READ_TIMEOUT', '300'))
+XION_MAX_RETRIES = int(os.getenv('XION_MAX_RETRIES', '2'))
+BLOG_FILE_MAX_UPLOAD_BYTES = int(os.getenv('BLOG_FILE_MAX_UPLOAD_BYTES', str(50 * 1024 * 1024)))
+
 # 开发环境下提供媒体文件服务
 if DEBUG:
     MEDIA_URL = '/media/'

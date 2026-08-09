@@ -1,27 +1,43 @@
-from django.shortcuts import render
+import json
+import logging
+import os
+import uuid
+
+from django.conf import settings
+from django.db import transaction
+from django.http import FileResponse
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
-from django.http import FileResponse
-import os
-import uuid
-import mimetypes
-import logging
-from django.conf import settings
 from .models import UploadFile, FileCategory, FileTag
 from .serializers import (
     UploadFileSerializer, FileUploadSerializer,
     FileCategorySerializer, FileTagSerializer,
     FileListSerializer
 )
+from .storage_backends import (
+    StorageNotFound,
+    StorageUnavailable,
+    backend_for_file,
+    get_storage_backend,
+    legacy_local_key,
+)
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
+
+
+class FilePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 def ensure_upload_directories():
     """
@@ -105,10 +121,10 @@ def validate_file_size(file, file_type):
     try:
         # 定义不同类型文件的大小限制（单位：字节）
         size_limits = {
-            'image': 5 * 1024 * 1024,  # 5MB
-            'video': 50 * 1024 * 1024,  # 50MB，与 Nginx client_max_body_size 对齐
-            'document': 20 * 1024 * 1024,  # 20MB
-            'other': 10 * 1024 * 1024,  # 10MB
+            'image': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
+            'video': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
+            'document': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
+            'other': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
             'avatars': 2 * 1024 * 1024  # 2MB
         }
         
@@ -153,6 +169,7 @@ class FileManagementViewSet(ModelViewSet):
     queryset = UploadFile.objects.all()
     serializer_class = UploadFileSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = FilePagination
     
     def get_queryset(self):
         queryset = UploadFile.objects.all()
@@ -182,60 +199,33 @@ class FileManagementViewSet(ModelViewSet):
             )
         
         try:
-            # 获取文件路径
-            file_path = os.path.join(settings.MEDIA_ROOT, instance.file_url.replace(settings.MEDIA_URL, ''))
-            
-            # 删除数据库记录
-            self.perform_destroy(instance)
-            
-            # 删除真实文件
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except OSError as e:
-                    logger.warning(f"删除物理文件失败: {str(e)}")
-                    # 继续执行，因为数据库记录已经删除
-                
+            backend = backend_for_file(instance)
+            backend.delete(_storage_key(instance))
+        except StorageNotFound:
+            pass
+        except StorageUnavailable as error:
+            logger.warning("删除物理文件失败，保留数据库记录: %s", error)
             return Response({
-                "code": 200,
-                "message": "文件删除成功",
+                "code": 503,
+                "message": "存储服务暂时不可用，文件记录已保留",
                 "data": None
-            })
-            
-        except Exception as e:
-            logger.error(f"删除文件失败: {str(e)}")
-            return Response({
-                "code": 500,
-                "message": "文件删除失败，请稍后重试",
-                "data": None
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        self.perform_destroy(instance)
+        return Response({
+            "code": 200,
+            "message": "文件删除成功",
+            "data": None
+        })
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get', 'post'])
     def download(self, request, pk=None):
         """下载文件"""
         file_obj = self.get_object()
-        
-        # 增加下载次数
+        response = _file_response(file_obj, as_attachment=True)
+        if isinstance(response, Response):
+            return response
         file_obj.increase_download_count()
-        
-        # 获取文件路径
-        file_path = os.path.join(settings.MEDIA_ROOT, file_obj.file_url.replace(settings.MEDIA_URL, ''))
-        
-        if not os.path.exists(file_path):
-            return Response({
-                'code': 404,
-                'message': '文件不存在'
-            }, status=status.HTTP_404_NOT_FOUND)
-        
-        # 获取文件类型
-        content_type, _ = mimetypes.guess_type(file_path)
-        
-        # 打开文件
-        file = open(file_path, 'rb')
-        response = FileResponse(file)
-        response['Content-Type'] = content_type
-        response['Content-Disposition'] = f'attachment; filename="{file_obj.name}"'
-        
         return response
     
     @action(detail=False, methods=['get'])
@@ -351,9 +341,9 @@ class FileUploadView(APIView):
     parser_classes = (MultiPartParser, FormParser)
     
     def post(self, request):
+        backend = None
+        stored = None
         try:
-            logger.info(f"开始处理文件上传请求: {request.FILES}")
-            
             if 'file' not in request.FILES:
                 return Response({
                     'code': 400,
@@ -362,14 +352,17 @@ class FileUploadView(APIView):
             
             file = request.FILES['file']
             file_type = request.data.get('file_type', 'other')
+            valid_file_types = {choice[0] for choice in UploadFile.FILE_TYPE_CHOICES}
+            if file_type not in valid_file_types:
+                return Response({
+                    'code': 400,
+                    'message': '不支持的文件类型'
+                }, status=status.HTTP_400_BAD_REQUEST)
             dynamic_id = request.data.get('dynamic_id')
             category_id = request.data.get('category_id')
             tag_ids = request.data.getlist('tag_ids')
             description = request.data.get('description', '')
-            is_public = request.data.get('is_public', True)
-            
-            logger.info(f"上传文件信息: 类型={file_type}, 大小={file.size}, 名称={file.name}")
-            logger.info(f"动态ID: {dynamic_id}")
+            is_public = _parse_boolean(request.data.get('is_public', True))
             
             # 验证文件类型
             is_valid, error_message = validate_file_type(file, file_type)
@@ -389,57 +382,39 @@ class FileUploadView(APIView):
                     'message': error_message
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # 生成唯一文件名
-            file_ext = os.path.splitext(file.name)[1]
-            file_name = f"{uuid.uuid4()}{file_ext}"
-            
-            # 构建文件保存路径
-            upload_dir = os.path.join(settings.MEDIA_ROOT, file_type)
-            os.makedirs(upload_dir, exist_ok=True)
-            file_path = os.path.join(upload_dir, file_name)
-            
-            logger.info(f"保存文件到: {file_path}")
-            
-            # 保存文件
-            with open(file_path, 'wb+') as destination:
-                for chunk in file.chunks():
-                    destination.write(chunk)
-            
-            # 构建文件URL
-            file_url = f"{settings.MEDIA_URL}{file_type}/{file_name}"
-            
-            # 保存文件信息到数据库
-            upload_file = UploadFile.objects.create(
-                name=file.name,
-                file_type=file_type,
-                file_size=file.size,
-                file_url=file_url,
-                uploader=request.user,
-                category_id=category_id,
-                description=description,
-                is_public=is_public
-            )
-            
-            logger.info(f"文件记录已创建: {upload_file.id}")
-            
-            # 添加标签
-            if tag_ids:
-                upload_file.tags.set(tag_ids)
-                logger.info(f"已添加标签: {tag_ids}")
-            
-            # 如果提供了动态ID，则关联到动态
-            if dynamic_id:
-                try:
+            backend = get_storage_backend()
+            stored = backend.save(file, file_type)
+
+            with transaction.atomic():
+                upload_file = UploadFile.objects.create(
+                    name=file.name,
+                    file_type=file_type,
+                    file_size=stored.size,
+                    file_url='',
+                    storage_backend=stored.storage_backend,
+                    storage_key=stored.storage_key,
+                    checksum=stored.checksum,
+                    content_type=stored.content_type,
+                    uploader=request.user,
+                    category_id=category_id or None,
+                    description=description,
+                    is_public=is_public,
+                )
+                upload_file.file_url = _stable_file_url(upload_file)
+                upload_file.save(update_fields=['file_url'])
+
+                normalized_tags = _parse_tag_ids(tag_ids)
+                if normalized_tags:
+                    upload_file.tags.set(normalized_tags)
+
+                if dynamic_id:
                     from apps.dynamic.models import Dynamic
-                    dynamic = Dynamic.objects.get(id=dynamic_id)
-                    dynamic.files.add(upload_file)
-                    logger.info(f"文件已关联到动态: {dynamic_id}")
-                except Dynamic.DoesNotExist:
-                    logger.warning(f"动态不存在: {dynamic_id}")
-                except Exception as e:
-                    logger.error(f"关联文件到动态时出错: {str(e)}")
-            
-            logger.info(f"文件上传成功: {file_url}")
+                    try:
+                        dynamic = Dynamic.objects.get(id=dynamic_id)
+                    except Dynamic.DoesNotExist:
+                        logger.warning("动态不存在: %s", dynamic_id)
+                    else:
+                        dynamic.files.add(upload_file)
             
             return Response({
                 'code': 200,
@@ -447,9 +422,104 @@ class FileUploadView(APIView):
                 'message': '文件上传成功'
             })
             
-        except Exception as e:
-            logger.error(f"文件上传失败: {str(e)}", exc_info=True)
+        except StorageUnavailable as error:
+            logger.warning("存储服务上传失败: %s", error)
+            return Response({
+                'code': 503,
+                'message': '存储服务暂时不可用，请稍后重试'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as error:
+            if backend is not None and stored is not None:
+                try:
+                    backend.delete(stored.storage_key)
+                except Exception:
+                    logger.exception("数据库写入失败后的存储补偿删除也失败: %s", stored.storage_key)
+            logger.error("文件上传失败: %s", error, exc_info=True)
             return Response({
                 'code': 500,
                 'message': '文件上传失败，请稍后重试'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PublicFileDownloadView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        file_obj = get_object_or_404(UploadFile, pk=pk, is_public=True)
+        response = _file_response(file_obj, as_attachment=False)
+        if isinstance(response, Response):
+            return response
+        file_obj.increase_download_count()
+        return response
+
+
+def _storage_key(file_obj):
+    if file_obj.storage_backend == 'local':
+        return legacy_local_key(file_obj)
+    return file_obj.storage_key
+
+
+def _file_response(file_obj, as_attachment):
+    try:
+        opened = backend_for_file(file_obj).open(_storage_key(file_obj))
+    except StorageNotFound:
+        return Response({
+            'code': 404,
+            'message': '文件不存在',
+            'data': None,
+        }, status=status.HTTP_404_NOT_FOUND)
+    except StorageUnavailable:
+        return Response({
+            'code': 503,
+            'message': '存储服务暂时不可用',
+            'data': None,
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    content_type = file_obj.content_type or opened.content_type or 'application/octet-stream'
+    safe_inline = content_type.lower().split(';', 1)[0].strip() in {
+        'image/gif',
+        'image/jpeg',
+        'image/png',
+        'audio/mpeg',
+        'audio/mp4',
+        'audio/ogg',
+        'audio/wav',
+        'audio/x-wav',
+        'video/mp4',
+        'video/quicktime',
+        'video/webm',
+    }
+    response = FileResponse(
+        opened.stream,
+        as_attachment=as_attachment or not safe_inline,
+        filename=file_obj.name,
+    )
+    response['Content-Type'] = content_type if safe_inline else 'application/octet-stream'
+    response['Content-Length'] = str(opened.size)
+    response['ETag'] = f'"sha256-{file_obj.checksum}"' if file_obj.checksum else ''
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
+def _stable_file_url(file_obj):
+    if file_obj.is_public:
+        return f'/api/upload/public/{file_obj.id}/'
+    return f'/api/upload/files/{file_obj.id}/download/'
+
+
+def _parse_boolean(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _parse_tag_ids(values):
+    if not values:
+        return []
+    if len(values) == 1 and isinstance(values[0], str) and values[0].lstrip().startswith('['):
+        try:
+            decoded = json.loads(values[0])
+        except json.JSONDecodeError:
+            return []
+        return decoded if isinstance(decoded, list) else []
+    return values
