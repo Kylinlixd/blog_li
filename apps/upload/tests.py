@@ -11,7 +11,7 @@ from rest_framework.test import APITestCase
 
 from apps.upload.models import UploadFile
 from apps.upload.storage_backends import OpenedObject, StoredObject, StorageUnavailable
-from apps.upload.views import ensure_upload_directories
+from apps.upload.views import ensure_upload_directories, validate_file_size
 
 
 class UploadDirectoryTests(SimpleTestCase):
@@ -28,6 +28,21 @@ class UploadDirectoryTests(SimpleTestCase):
         ):
             ensure_upload_directories()
             ensure_upload_directories()
+
+
+class UploadSizeContractTests(SimpleTestCase):
+    def test_all_file_types_share_the_public_50_mb_limit(self):
+        maximum = 50 * 1024 * 1024
+
+        for file_type in ("image", "video", "document", "other"):
+            with self.subTest(file_type=file_type):
+                self.assertEqual(
+                    (True, None),
+                    validate_file_size(SimpleNamespace(size=maximum), file_type),
+                )
+                allowed, message = validate_file_size(SimpleNamespace(size=maximum + 1), file_type)
+                self.assertFalse(allowed)
+                self.assertIn("50.0MB", message)
 
 
 class UploadFileStorageModelTests(TestCase):

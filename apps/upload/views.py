@@ -114,10 +114,10 @@ def validate_file_size(file, file_type):
     try:
         # 定义不同类型文件的大小限制（单位：字节）
         size_limits = {
-            'image': 5 * 1024 * 1024,  # 5MB
-            'video': 50 * 1024 * 1024,  # 50MB，与 Nginx client_max_body_size 对齐
-            'document': 20 * 1024 * 1024,  # 20MB
-            'other': 10 * 1024 * 1024,  # 10MB
+            'image': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
+            'video': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
+            'document': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
+            'other': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
             'avatars': 2 * 1024 * 1024  # 2MB
         }
         

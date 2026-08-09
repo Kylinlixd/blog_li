@@ -321,6 +321,7 @@ XION_SERVICE_TOKEN = os.getenv('XION_SERVICE_TOKEN', '')
 XION_CONNECT_TIMEOUT = float(os.getenv('XION_CONNECT_TIMEOUT', '5'))
 XION_READ_TIMEOUT = float(os.getenv('XION_READ_TIMEOUT', '60'))
 XION_MAX_RETRIES = int(os.getenv('XION_MAX_RETRIES', '2'))
+BLOG_FILE_MAX_UPLOAD_BYTES = int(os.getenv('BLOG_FILE_MAX_UPLOAD_BYTES', str(50 * 1024 * 1024)))
 
 # 开发环境下提供媒体文件服务
 if DEBUG:

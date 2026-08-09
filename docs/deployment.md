@@ -38,6 +38,33 @@ DB_PORT=3306
 
 仅在所有子域都已永久启用 HTTPS 时使用 `DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS=True`；确认无误后再考虑开启 HSTS preload。
 
+### AstraStoreXion 双存储
+
+新版本支持逐文件选择存储后端。历史记录和 `/media/` 文件默认保持 `local`，启用后只有新上传写入 Xion，无需批量迁移旧文件。
+
+先保持关闭状态发布后端：
+
+```dotenv
+XION_STORAGE_ENABLED=False
+XION_BASE_URL=http://127.0.0.1:8081
+XION_SERVICE_TOKEN=
+XION_CONNECT_TIMEOUT=5
+XION_READ_TIMEOUT=60
+XION_MAX_RETRIES=2
+BLOG_FILE_MAX_UPLOAD_BYTES=52428800
+```
+
+安装 AstraStoreXion Python SDK，并确认 Xion 仅监听回环地址：
+
+```bash
+source .venv/bin/activate
+pip install /path/to/AstraStoreXion/client/python
+curl --fail http://127.0.0.1:8081/readyz
+ss -ltnp | grep '127.0.0.1:8081'
+```
+
+把服务器端生成的同一服务密钥写入 Xion 和 Django 的 mode 0600 环境文件，再设置 `XION_STORAGE_ENABLED=True` 并重启 Gunicorn。不要在终端输出、Git、前端环境或截图中暴露密钥。
+
 ## 2. 发布命令
 
 ```bash
@@ -49,6 +76,8 @@ python manage.py test
 ```
 
 迁移前备份数据库。用户上传的 `media/` 也必须独立备份，不能依赖 Git。
+
+迁移 `upload.0003_uploadfile_storage_fields` 只增加后端、对象键、校验和与 MIME 字段；现有行默认 `storage_backend=local`。
 
 ## 3. systemd 示例
 
@@ -103,7 +132,12 @@ location /static/ {
 - `python manage.py check --deploy` 无阻断问题
 - 全量测试通过，迁移在预发布数据库验证
 - 登录、刷新令牌、公开文章、评论、上传和仪表盘冒烟测试通过
+- PNG、PDF、DOCX、TXT 通过博客 API 上传；下载 SHA-256 与本地一致
+- 重启 Xion 和 Gunicorn 后新文件仍可下载，专用测试记录可完整删除
+- 至少一个历史 `/media/` 链接仍返回 200
 - 数据库与 `media/` 备份可恢复
 - 监控 5xx、Gunicorn 重启、磁盘空间和数据库连接
 
 回滚代码前先确认迁移是否可逆；不要在未备份时执行破坏性反向迁移。
+
+若只回滚新写入，先设置 `XION_STORAGE_ENABLED=False` 并重启 Gunicorn。保留 Xion 服务与数据目录，以便读取已经标记为 `xion` 的历史记录；不要把关闭新写入误当成可以删除存储对象。
