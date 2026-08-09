@@ -126,6 +126,7 @@ def create_phase(args: argparse.Namespace):
                     "is_public": "true",
                 },
                 format="multipart",
+                secure=True,
             )
             require_status(response, 200, f"upload {filename}")
             record = UploadFile.objects.get(id=response.data["data"]["id"])
@@ -140,7 +141,7 @@ def create_phase(args: argparse.Namespace):
             })
     except Exception:
         for record in UploadFile.objects.filter(uploader=user):
-            client.delete(f"/api/upload/files/{record.id}/")
+            client.delete(f"/api/upload/files/{record.id}/", secure=True)
         user.delete()
         raise
 
@@ -169,12 +170,15 @@ def verify_records(args: argparse.Namespace, state: dict):
         if record.storage_backend != "xion" or record.storage_key != item["storage_key"]:
             raise RuntimeError(f"database metadata changed: {item['filename']}")
 
-        download = authenticated.post(f"/api/upload/files/{record.id}/download/")
+        download = authenticated.post(
+            f"/api/upload/files/{record.id}/download/",
+            secure=True,
+        )
         require_status(download, 200, f"authenticated download {item['filename']}")
         if response_bytes(download) != original:
             raise RuntimeError(f"authenticated bytes mismatch: {item['filename']}")
 
-        public_download = public.get(f"/api/upload/public/{record.id}/")
+        public_download = public.get(f"/api/upload/public/{record.id}/", secure=True)
         require_status(public_download, 200, f"public download {item['filename']}")
         if response_bytes(public_download) != original:
             raise RuntimeError(f"public bytes mismatch: {item['filename']}")
@@ -194,7 +198,7 @@ def delete_phase(args: argparse.Namespace):
     state = load_state(args.state)
     user, client = verify_records(args, state)
     for item in state["records"]:
-        response = client.delete(f"/api/upload/files/{item['id']}/")
+        response = client.delete(f"/api/upload/files/{item['id']}/", secure=True)
         require_status(response, 200, f"delete {item['filename']}")
         if UploadFile.objects.filter(id=item["id"]).exists():
             raise RuntimeError(f"database record still exists: {item['filename']}")
