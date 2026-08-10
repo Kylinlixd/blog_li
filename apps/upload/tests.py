@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -113,6 +113,32 @@ class UploadSizeContractTests(SimpleTestCase):
                 allowed, message = validate_file_size(SimpleNamespace(size=maximum + 1), file_type)
                 self.assertFalse(allowed)
                 self.assertIn("50.0MB", message)
+
+
+class UploadTypeValidationTests(SimpleTestCase):
+    def test_iphone_media_extensions_and_mime_types_are_allowed(self):
+        from apps.upload.views import validate_file_type
+
+        samples = [
+            ("IMG_1001.MOV", "video/quicktime", "video"),
+            ("IMG_1001.M4V", "video/x-m4v", "video"),
+            ("IMG_1001.HEVC", "video/hevc", "video"),
+            ("IMG_1001.HEIC", "image/heic", "image"),
+            ("IMG_1001.HEIF", "image/heif", "image"),
+        ]
+        for name, content_type, file_type in samples:
+            with self.subTest(name=name):
+                uploaded = SimpleUploadedFile(name, b"media", content_type=content_type)
+                self.assertEqual((True, None), validate_file_type(uploaded, file_type))
+
+    def test_unknown_media_format_is_rejected(self):
+        from apps.upload.views import validate_file_type
+
+        uploaded = SimpleUploadedFile("IMG_1001.xyz", b"media", content_type="video/quicktime")
+        allowed, message = validate_file_type(uploaded, "video")
+
+        self.assertFalse(allowed)
+        self.assertIn("扩展名", message)
 
 
 class UploadFileStorageModelTests(TestCase):
@@ -285,6 +311,72 @@ class FileStorageViewTests(APITestCase):
         self.assertEqual("abc", uploaded.checksum)
         self.assertEqual(f"/api/upload/public/{uploaded.id}/", uploaded.file_url)
         self.assertEqual("xion", response.data["data"]["storage_backend"])
+
+    @patch("apps.upload.views.process_uploaded_media")
+    @patch("apps.upload.views.get_storage_backend")
+    def test_video_upload_persists_processed_metadata_and_poster(self, backend_factory, process):
+        with tempfile.TemporaryDirectory() as directory:
+            media_path = Path(directory) / "media.mp4"
+            poster_path = Path(directory) / "poster.jpg"
+            media_path.write_bytes(b"mp4")
+            poster_path.write_bytes(b"jpg")
+            process.return_value = SimpleNamespace(
+                media_path=media_path,
+                media_name="IMG_1001.mp4",
+                content_type="video/mp4",
+                poster_path=poster_path,
+                poster_name="IMG_1001.jpg",
+                poster_content_type="image/jpeg",
+                cleanup=MagicMock(),
+            )
+            backend = backend_factory.return_value
+            backend.save.side_effect = [
+                StoredObject("xion", "video-key", 3, "video-checksum", "video/mp4"),
+                StoredObject("xion", "poster-key", 3, "poster-checksum", "image/jpeg"),
+            ]
+
+            response = self.client.post("/api/upload/upload/", {
+                "file": SimpleUploadedFile("IMG_1001.MOV", b"mov", content_type="video/quicktime"),
+                "file_type": "video",
+            })
+
+        self.assertEqual(200, response.status_code)
+        uploaded = UploadFile.objects.get()
+        self.assertEqual("IMG_1001.mp4", uploaded.name)
+        self.assertEqual(3, uploaded.file_size)
+        self.assertEqual("video/mp4", uploaded.content_type)
+        self.assertEqual("/api/upload/poster/1/", uploaded.poster_url)
+        self.assertEqual("/api/upload/poster/1/", response.data["data"]["poster_url"])
+        process.return_value.cleanup.assert_called_once_with()
+
+    @patch("apps.upload.views.process_uploaded_media")
+    @patch("apps.upload.views.get_storage_backend")
+    def test_poster_storage_failure_deletes_processed_media(self, backend_factory, process):
+        with tempfile.TemporaryDirectory() as directory:
+            media_path = Path(directory) / "media.mp4"
+            poster_path = Path(directory) / "poster.jpg"
+            media_path.write_bytes(b"mp4")
+            poster_path.write_bytes(b"jpg")
+            process.return_value = SimpleNamespace(
+                media_path=media_path,
+                media_name="IMG_1001.mp4",
+                content_type="video/mp4",
+                poster_path=poster_path,
+                poster_name="IMG_1001.jpg",
+                poster_content_type="image/jpeg",
+                cleanup=MagicMock(),
+            )
+            backend = backend_factory.return_value
+            backend.save.side_effect = [StoredObject("xion", "video-key", 3, "abc", "video/mp4"), StorageUnavailable("down")]
+
+            response = self.client.post("/api/upload/upload/", {
+                "file": SimpleUploadedFile("IMG_1001.MOV", b"mov", content_type="video/quicktime"),
+                "file_type": "video",
+            })
+
+        self.assertEqual(503, response.status_code)
+        backend.delete.assert_called_once_with("video-key")
+        self.assertFalse(UploadFile.objects.exists())
 
     @patch("apps.upload.views.get_storage_backend")
     def test_upload_rejects_unknown_file_type_before_storage(self, backend_factory):

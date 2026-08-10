@@ -4,6 +4,7 @@ import os
 import uuid
 
 from django.conf import settings
+from django.core.files import File
 from django.db import transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -29,6 +30,7 @@ from .storage_backends import (
     get_storage_backend,
     legacy_local_key,
 )
+from .media_processing import process_uploaded_media
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
@@ -59,8 +61,8 @@ def validate_file_type(file, file_type):
     """
     try:
         allowed_extensions = {
-            'image': {'jpg', 'jpeg', 'png', 'gif'},
-            'video': {'mp4', 'mov', 'avi'},
+            'image': {'jpg', 'jpeg', 'png', 'gif', 'heic', 'heif'},
+            'video': {'mp4', 'mov', 'm4v', 'avi', 'webm', 'hevc'},
             'document': {'pdf', 'doc', 'docx', 'xls', 'xlsx'},
         }
         image_signatures = {
@@ -81,8 +83,8 @@ def validate_file_type(file, file_type):
         
         # 定义允许的文件类型
         allowed_types = {
-            'image': ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'],
-            'video': ['video/mp4', 'video/quicktime', 'video/x-msvideo'],
+            'image': ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/heic', 'image/heif'],
+            'video': ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/x-msvideo', 'video/webm', 'video/hevc'],
             'document': [
                 'application/pdf',
                 'application/msword',
@@ -201,6 +203,9 @@ class FileManagementViewSet(ModelViewSet):
         try:
             backend = backend_for_file(instance)
             backend.delete(_storage_key(instance))
+            if instance.poster_storage_key:
+                poster_backend = backend_for_file(instance)
+                poster_backend.delete(instance.poster_storage_key)
         except StorageNotFound:
             pass
         except StorageUnavailable as error:
@@ -343,6 +348,8 @@ class FileUploadView(APIView):
     def post(self, request):
         backend = None
         stored = None
+        poster_stored = None
+        processed = None
         try:
             if 'file' not in request.FILES:
                 return Response({
@@ -382,26 +389,43 @@ class FileUploadView(APIView):
                     'message': error_message
                 }, status=status.HTTP_400_BAD_REQUEST)
             
+            processed = process_uploaded_media(file, file_type)
             backend = get_storage_backend()
-            stored = backend.save(file, file_type)
+
+            # 存储边界只接收处理后的临时文件，原始 MOV/HEIC 不直接暴露给网页。
+            with processed.media_path.open('rb') as media_stream:
+                media_file = File(media_stream, name=processed.media_name)
+                media_file.content_type = processed.content_type
+                stored = backend.save(media_file, file_type)
+
+            if processed.poster_path is not None:
+                with processed.poster_path.open('rb') as poster_stream:
+                    poster_file = File(poster_stream, name=processed.poster_name)
+                    poster_file.content_type = processed.poster_content_type
+                    poster_stored = backend.save(poster_file, 'image')
 
             with transaction.atomic():
                 upload_file = UploadFile.objects.create(
-                    name=file.name,
+                    name=processed.media_name,
                     file_type=file_type,
                     file_size=stored.size,
                     file_url='',
                     storage_backend=stored.storage_backend,
                     storage_key=stored.storage_key,
                     checksum=stored.checksum,
-                    content_type=stored.content_type,
+                    content_type=processed.content_type,
+                    poster_storage_backend=poster_stored.storage_backend if poster_stored else '',
+                    poster_storage_key=poster_stored.storage_key if poster_stored else '',
                     uploader=request.user,
                     category_id=category_id or None,
                     description=description,
                     is_public=is_public,
                 )
                 upload_file.file_url = _stable_file_url(upload_file)
+                upload_file.poster_url = _stable_poster_url(upload_file) if poster_stored else ''
                 upload_file.save(update_fields=['file_url'])
+                if poster_stored:
+                    upload_file.save(update_fields=['poster_url'])
 
                 normalized_tags = _parse_tag_ids(tag_ids)
                 if normalized_tags:
@@ -423,22 +447,22 @@ class FileUploadView(APIView):
             })
             
         except StorageUnavailable as error:
+            _delete_stored_objects(backend, stored, poster_stored)
             logger.warning("存储服务上传失败: %s", error)
             return Response({
                 'code': 503,
                 'message': '存储服务暂时不可用，请稍后重试'
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as error:
-            if backend is not None and stored is not None:
-                try:
-                    backend.delete(stored.storage_key)
-                except Exception:
-                    logger.exception("数据库写入失败后的存储补偿删除也失败: %s", stored.storage_key)
+            _delete_stored_objects(backend, stored, poster_stored)
             logger.error("文件上传失败: %s", error, exc_info=True)
             return Response({
                 'code': 500,
                 'message': '文件上传失败，请稍后重试'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        finally:
+            if processed is not None:
+                processed.cleanup()
 
 
 class PublicFileDownloadView(APIView):
@@ -451,6 +475,25 @@ class PublicFileDownloadView(APIView):
             return response
         file_obj.increase_download_count()
         return response
+
+
+class PublicFilePosterDownloadView(APIView):
+    """公开视频封面响应，封面与主视频共用访问权限和存储后端。"""
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        file_obj = get_object_or_404(UploadFile, pk=pk, is_public=True)
+        return _poster_response(file_obj)
+
+
+class PrivateFilePosterDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        file_obj = get_object_or_404(UploadFile, pk=pk)
+        if not request.user.is_staff and file_obj.uploader_id != request.user.id:
+            return Response({'detail': '您没有权限查看此封面'}, status=status.HTTP_403_FORBIDDEN)
+        return _poster_response(file_obj)
 
 
 def _storage_key(file_obj):
@@ -501,10 +544,48 @@ def _file_response(file_obj, as_attachment):
     return response
 
 
+def _poster_response(file_obj):
+    if not file_obj.poster_storage_key:
+        return Response({'code': 404, 'message': '封面不存在', 'data': None}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        opened = backend_for_file(file_obj).open(file_obj.poster_storage_key)
+    except StorageNotFound:
+        return Response({'code': 404, 'message': '封面不存在', 'data': None}, status=status.HTTP_404_NOT_FOUND)
+    except StorageUnavailable:
+        return Response({'code': 503, 'message': '存储服务暂时不可用', 'data': None}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    response = FileResponse(opened.stream, as_attachment=False, filename=file_obj.name.rsplit('.', 1)[0] + '.jpg')
+    response['Content-Type'] = 'image/jpeg'
+    response['Content-Length'] = str(opened.size)
+    response['ETag'] = f'"sha256-{file_obj.checksum}-poster"' if file_obj.checksum else ''
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
 def _stable_file_url(file_obj):
     if file_obj.is_public:
         return f'/api/upload/public/{file_obj.id}/'
     return f'/api/upload/files/{file_obj.id}/download/'
+
+
+def _stable_poster_url(file_obj):
+    """封面复用文件权限，单独走图片响应以保持视频主文件记录完整。"""
+    if file_obj.is_public:
+        return f'/api/upload/poster/{file_obj.id}/'
+    return f'/api/upload/files/{file_obj.id}/poster/'
+
+
+def _delete_stored_objects(backend, *stored_objects):
+    """上传后任一步失败时删除已经写入的主文件和封面。"""
+    if backend is None:
+        return
+    for stored_object in stored_objects:
+        if stored_object is None:
+            continue
+        try:
+            backend.delete(stored_object.storage_key)
+        except Exception:
+            logger.exception("存储补偿删除失败: %s", stored_object.storage_key)
 
 
 def _parse_boolean(value):

@@ -31,10 +31,11 @@ class VideoSerializer(serializers.Serializer):
 class MediaFileSerializer(serializers.ModelSerializer):
     url = serializers.CharField(source='file_url')  # 兼容性字段
     size = serializers.IntegerField(source='file_size')
+    poster_url = serializers.CharField(read_only=True)
     
     class Meta:
         model = UploadFile
-        fields = ['id', 'name', 'file_type', 'file_url', 'url', 'size', 'created_at']
+        fields = ['id', 'name', 'file_type', 'file_url', 'url', 'size', 'poster_url', 'created_at']
 
 
 class DynamicSerializer(serializers.ModelSerializer):
@@ -71,7 +72,8 @@ class DynamicSerializer(serializers.ModelSerializer):
             'url': file.file_url,
             'type': file.file_type,
             'name': file.name,
-            'size': file.file_size
+            'size': file.file_size,
+            'poster_url': file.poster_url,
         } for file in files]
         
         logger.debug(f"返回的文件信息: {result}")
