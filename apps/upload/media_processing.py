@@ -113,19 +113,24 @@ def process_uploaded_media(uploaded_file, file_type: str) -> ProcessedMedia:
 
         if file_type == "image" and extension in {"heic", "heif"}:
             media_path = temporary_directory / "media.jpg"
-            _run_ffmpeg(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    str(source_path),
-                    "-frames:v",
-                    "1",
-                    "-q:v",
-                    "2",
-                    str(media_path),
-                ]
-            )
+            heif_converter = shutil.which("heif-convert")
+            if heif_converter:
+                # Ubuntu 的 FFmpeg 通常只有 HEVC 解码器，优先使用 libheif 工具读 HEIC 容器。
+                _run_ffmpeg([heif_converter, "--quiet", str(source_path), str(media_path)])
+            else:
+                _run_ffmpeg(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(source_path),
+                        "-frames:v",
+                        "1",
+                        "-q:v",
+                        "2",
+                        str(media_path),
+                    ]
+                )
             return ProcessedMedia(
                 media_path=media_path,
                 media_name=f"{Path(original_name).stem}.jpg",

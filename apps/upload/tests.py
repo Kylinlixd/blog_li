@@ -58,7 +58,9 @@ class MediaProcessingTests(SimpleTestCase):
         uploaded = SimpleUploadedFile(
             "IMG_1001.HEIC", b"heic", content_type="image/heic"
         )
-        with patch("apps.upload.media_processing.subprocess.run", side_effect=fake_run):
+        with patch("apps.upload.media_processing.subprocess.run", side_effect=fake_run), patch(
+            "apps.upload.media_processing.shutil.which", return_value="heif-convert"
+        ):
             processed = process_uploaded_media(uploaded, "image")
             try:
                 self.assertEqual("image/jpeg", processed.content_type)
