@@ -73,7 +73,7 @@ class DynamicAPITests(APITestCase):
             media_urls=['/api/upload/public/48/'],
         )
 
-        response = self.client.get(f'/blog/dynamics/{video.pk}/')
+        response = self.client.get(f'/api/blog/dynamics/{video.pk}/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['type'], 'video')
