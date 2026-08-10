@@ -1,6 +1,7 @@
 import importlib
 import importlib.util
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,69 @@ from rest_framework.test import APITestCase
 from apps.upload.models import UploadFile
 from apps.upload.storage_backends import OpenedObject, StoredObject, StorageUnavailable
 from apps.upload.views import ensure_upload_directories, validate_file_size
+
+
+class MediaProcessingTests(SimpleTestCase):
+    def test_video_command_outputs_web_mp4_and_poster(self):
+        from apps.upload.media_processing import process_uploaded_media
+
+        commands = []
+
+        def fake_run(command, **kwargs):
+            commands.append(command)
+            Path(command[-1]).write_bytes(b"processed")
+
+        uploaded = SimpleUploadedFile(
+            "IMG_1001.MOV", b"video", content_type="video/quicktime"
+        )
+        with patch("apps.upload.media_processing.subprocess.run", side_effect=fake_run):
+            processed = process_uploaded_media(uploaded, "video")
+            try:
+                self.assertEqual(".mp4", processed.media_path.suffix)
+                self.assertEqual(".jpg", processed.poster_path.suffix)
+                self.assertEqual("video/mp4", processed.content_type)
+                video_command = commands[0]
+                self.assertIn("libx264", video_command)
+                self.assertIn("aac", video_command)
+                self.assertIn("yuv420p", video_command)
+                self.assertIn("+faststart", video_command)
+                self.assertTrue(any("1920" in part for part in video_command))
+            finally:
+                processed.cleanup()
+
+    def test_heic_command_outputs_jpeg(self):
+        from apps.upload.media_processing import process_uploaded_media
+
+        def fake_run(command, **kwargs):
+            Path(command[-1]).write_bytes(b"jpeg")
+
+        uploaded = SimpleUploadedFile(
+            "IMG_1001.HEIC", b"heic", content_type="image/heic"
+        )
+        with patch("apps.upload.media_processing.subprocess.run", side_effect=fake_run):
+            processed = process_uploaded_media(uploaded, "image")
+            try:
+                self.assertEqual("image/jpeg", processed.content_type)
+                self.assertEqual(".jpg", processed.media_path.suffix)
+                self.assertEqual("image/jpeg", processed.media_content_type)
+            finally:
+                processed.cleanup()
+
+    def test_processing_failure_removes_temporary_outputs(self):
+        from apps.upload.media_processing import process_uploaded_media
+
+        uploaded = SimpleUploadedFile(
+            "IMG_1001.MOV", b"video", content_type="video/quicktime"
+        )
+        with patch(
+            "apps.upload.media_processing.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, ["ffmpeg"]),
+        ):
+            with self.assertRaises(subprocess.CalledProcessError):
+                process_uploaded_media(uploaded, "video")
+
+        self.assertEqual([], list(Path(tempfile.gettempdir()).glob("blog-media-*/**/*.mp4")))
+        self.assertEqual([], list(Path(tempfile.gettempdir()).glob("blog-media-*/**/*.jpg")))
 
 
 class UploadDirectoryTests(SimpleTestCase):
