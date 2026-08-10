@@ -62,6 +62,24 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.data['data']['category']['name'], self.category.name)
         self.assertEqual(response.data['data']['tags'][0]['name'], self.tag.name)
 
+    def test_detail_includes_content_type_and_media_urls(self):
+        video = Dynamic.objects.create(
+            author=self.user,
+            category=self.category,
+            title='视频记录',
+            content='视频正文',
+            type='video',
+            status='published',
+            media_urls=['/api/upload/public/48/'],
+        )
+
+        response = self.client.get(f'/blog/dynamics/{video.pk}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['type'], 'video')
+        self.assertEqual(response.data['data']['status'], 'published')
+        self.assertEqual(response.data['data']['mediaUrls'], ['/api/upload/public/48/'])
+
     def test_reading_detail_does_not_mutate_view_count(self):
         self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
 
