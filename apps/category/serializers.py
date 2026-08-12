@@ -8,7 +8,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'sort', 'createdAt', 'updatedAt', 'dynamicCount']
+        fields = ['id', 'name', 'description', 'sort', 'status', 'createdAt', 'updatedAt', 'dynamicCount']
         extra_kwargs = {
             'name': {'required': True, 'allow_blank': False},
             'description': {'required': False},
@@ -24,13 +24,13 @@ class SimpleCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'sort', 'createdAt', 'updatedAt']
+        fields = ['id', 'name', 'description', 'sort', 'status', 'createdAt', 'updatedAt']
 
 
 class CategoryCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['name', 'description', 'sort']
+        fields = ['name', 'description', 'sort', 'status']
     
     def validate_name(self, value):
         if Category.objects.filter(name=value).exists():
@@ -41,7 +41,7 @@ class CategoryCreateSerializer(serializers.ModelSerializer):
 class CategoryUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['name', 'description', 'sort']
+        fields = ['name', 'description', 'sort', 'status']
     
     def validate_name(self, value):
         if Category.objects.filter(name=value).exclude(id=self.instance.id).exists():

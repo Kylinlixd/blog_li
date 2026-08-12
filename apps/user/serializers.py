@@ -18,6 +18,12 @@ class UserSerializer(serializers.ModelSerializer):
             data['permissions'] = []
         return data
 
+
+class PublicUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['nickname', 'avatar']
+
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)

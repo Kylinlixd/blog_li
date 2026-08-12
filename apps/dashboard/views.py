@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated
+from apps.user.permissions import IsContentEditor
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -17,7 +17,7 @@ from apps.access_log.models import AccessLog
 class StatsView(APIView):
     """Return content totals and the latest seven-day publishing trend."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
 
     def get(self, request):
         seven_days_ago = timezone.now() - timedelta(days=7)

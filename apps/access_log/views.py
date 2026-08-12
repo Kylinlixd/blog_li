@@ -1,4 +1,4 @@
-from rest_framework.permissions import IsAuthenticated
+from apps.user.permissions import IsContentEditor
 from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.pagination import PageNumberPagination
 from .models import AccessLog
@@ -18,7 +18,7 @@ class AccessLogPagination(PageNumberPagination):
 class AccessLogViewSet(ReadOnlyModelViewSet):
     queryset = AccessLog.objects.select_related('user').all()
     serializer_class = AccessLogSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
     pagination_class = AccessLogPagination
 
     def get_queryset(self):

@@ -19,10 +19,9 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
 from django.http import JsonResponse
 
-from apps.user.views import UserViewSet
+from apps.user.views import UserViewSet, CookieTokenRefreshView
 from apps.dynamic.views import (
     DynamicViewSet, HotDynamicsView, RecentDynamicsView, 
     CategoryDynamicsView, SearchView, TagDynamicsView
@@ -68,7 +67,7 @@ urlpatterns = [
     path('api/auth/login/', UserViewSet.as_view({'post': 'login'}), name='login'),
     path('api/auth/register/', UserViewSet.as_view({'post': 'register'}), name='register'),
     path('api/auth/logout/', UserViewSet.as_view({'post': 'logout'}), name='logout'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/info/', UserViewSet.as_view({'get': 'info'}), name='user-info'),
     path('api/auth/password/', UserViewSet.as_view({'put': 'password'}), name='change-password'),
     path('api/auth/profile/', UserViewSet.as_view({'put': 'profile'}), name='update-profile'),

@@ -1,5 +1,6 @@
 from apps.dynamic.models import Dynamic
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
+from apps.user.permissions import IsContentEditor
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from apps.dynamic.serializers import (
     DynamicSerializer, AdjacentDynamicSerializer,
@@ -21,6 +22,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from django.conf import settings
 import os
 from apps.category.serializers import CategorySerializer
+from apps.user.serializers import PublicUserSerializer
 from django.db.models import Case, When, Value, FloatField
 from django.core.cache import cache
 from blog.request_utils import get_client_ip, is_public_blog_request
@@ -58,9 +60,9 @@ class DynamicPagination(PageNumberPagination):
 
 
 class DynamicViewSet(ModelViewSet):
-    queryset = Dynamic.objects.select_related('author', 'category').prefetch_related('tags', 'files', 'comments')
+    queryset = Dynamic.objects.select_related('author', 'category').prefetch_related('tags', 'files')
     pagination_class = DynamicPagination
-    permission_classes = [IsAuthenticated]  # 默认需要认证
+    permission_classes = [IsContentEditor]
     
     def get_permissions(self):
         is_public_blog = is_public_blog_request(self.request)
@@ -199,6 +201,7 @@ class DynamicViewSet(ModelViewSet):
                     'created_at': instance.created_at,
                     'views': instance.view_count,
                     'likes': instance.like_count,
+                    'author': PublicUserSerializer(instance.author).data if instance.author else None,
                     'category': {
                         'id': instance.category.id,
                         'name': instance.category.name
@@ -421,7 +424,7 @@ class CategoryDynamicsView(APIView):
     def get(self, request, categoryId):
         try:
             # 获取分类
-            category = Category.objects.get(pk=categoryId)
+            category = Category.objects.get(pk=categoryId, status='active')
             
             # 获取该分类下已发布的动态
             dynamics = Dynamic.objects.filter(
@@ -472,7 +475,7 @@ class TagDynamicsView(APIView):
     def get(self, request, tagId):
         try:
             # 获取标签
-            tag = Tag.objects.get(pk=tagId)
+            tag = Tag.objects.get(pk=tagId, status='active')
             
             # 获取该标签下已发布的动态
             dynamics = Dynamic.objects.filter(
@@ -519,7 +522,7 @@ class TagDynamicsView(APIView):
 
 
 class DynamicListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
     
     def get(self, request):
         try:

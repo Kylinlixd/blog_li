@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-VIDEO_EXTENSIONS = {"mp4", "mov", "m4v", "webm", "hevc"}
+VIDEO_EXTENSIONS = {"mp4", "mov", "m4v", "avi", "webm", "hevc"}
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "heic", "heif"}
 
 # 视频统一输出浏览器兼容的 H.264/AAC MP4，避免 iPhone HEVC 无法直接播放。
@@ -157,6 +157,6 @@ def process_uploaded_media(uploaded_file, file_type: str) -> ProcessedMedia:
             poster_content_type="",
             temporary_directory=temporary_directory,
         )
-    except BaseException:
+    except Exception:
         shutil.rmtree(temporary_directory, ignore_errors=True)
         raise

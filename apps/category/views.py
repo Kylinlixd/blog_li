@@ -1,5 +1,6 @@
 from rest_framework.viewsets import ModelViewSet, ViewSet
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
+from apps.user.permissions import IsContentEditor
 from .models import Category
 from .serializers import CategorySerializer, SimpleCategorySerializer
 from rest_framework.response import Response
@@ -8,7 +9,7 @@ from django.db.models import Count, Q
 class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
 
     def list(self, request, *args, **kwargs):
         # 获取搜索参数
@@ -94,7 +95,7 @@ class BlogCategoriesView(ViewSet):
     
     def list(self, request):
         # 获取所有分类，并添加动态计数
-        categories = Category.objects.annotate(
+        categories = Category.objects.filter(status='active').annotate(
             dynamic_count=Count('dynamics', filter=Q(dynamics__status='published'))
         ).order_by('sort', 'id')
         serializer = CategorySerializer(categories, many=True)

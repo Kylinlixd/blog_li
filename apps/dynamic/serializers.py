@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Dynamic
-from apps.user.serializers import UserSerializer
+from apps.user.serializers import PublicUserSerializer, UserSerializer
 from apps.category.serializers import CategorySerializer
 from apps.tag.serializers import TagSerializer
 from apps.upload.serializers import UploadFileSerializer
@@ -39,7 +39,7 @@ class MediaFileSerializer(serializers.ModelSerializer):
 
 
 class DynamicSerializer(serializers.ModelSerializer):
-    author = UserSerializer(read_only=True)
+    author = PublicUserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     mediaUrls = serializers.SerializerMethodField()

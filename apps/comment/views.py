@@ -1,5 +1,6 @@
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
+from apps.user.permissions import IsContentEditor
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -9,7 +10,7 @@ from rest_framework.views import APIView
 from .models import Comment
 from .serializers import (
     CommentSerializer, CommentCreateSerializer,
-    CommentUpdateSerializer
+    CommentUpdateSerializer, PublicCommentSerializer
 )
 from blog.request_utils import is_public_blog_request
 
@@ -34,7 +35,7 @@ class CommentPagination(PageNumberPagination):
 
 class CommentViewSet(ModelViewSet):
     queryset = Comment.objects.select_related('author', 'dynamic')
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
     pagination_class = CommentPagination
     
     def get_permissions(self):
@@ -62,7 +63,7 @@ class CommentViewSet(ModelViewSet):
     
         # 前台请求只返回已审核的评论
         if is_public_blog_request(self.request):
-            queryset = queryset.filter(status='approved')
+            queryset = queryset.filter(status='approved', dynamic__status='published')
         else:
             # 后台请求根据 status 参数过滤
             status = self.request.query_params.get('status')
@@ -176,10 +177,11 @@ class BlogCommentView(APIView):
         # 待审核评论仅对提交者返回，不进入公开列表。
         queryset = Comment.objects.filter(
             dynamic_id=dynamic_id,
+            dynamic__status='published',
             status='approved'
         ).select_related('author').order_by('-created_at')
         
-        serializer = CommentSerializer(queryset, many=True)
+        serializer = PublicCommentSerializer(queryset, many=True)
         return Response({
             'code': 200,
             'message': 'success',
@@ -197,5 +199,5 @@ class BlogCommentView(APIView):
         return Response({
             'code': 200,
             'message': '评论提交成功',
-            'data': CommentSerializer(comment).data
+            'data': PublicCommentSerializer(comment).data
         })

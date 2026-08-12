@@ -10,6 +10,7 @@ from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from apps.user.permissions import IsContentEditor
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
@@ -31,6 +32,7 @@ from .storage_backends import (
     legacy_local_key,
 )
 from .media_processing import process_uploaded_media
+from .validation import validate_file_size, validate_file_type
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
@@ -55,122 +57,31 @@ def ensure_upload_directories():
 # 在应用启动时创建目录
 ensure_upload_directories()
 
-def validate_file_type(file, file_type):
-    """
-    验证文件类型
-    """
-    try:
-        allowed_extensions = {
-            'image': {'jpg', 'jpeg', 'png', 'gif', 'heic', 'heif'},
-            'video': {'mp4', 'mov', 'm4v', 'avi', 'webm', 'hevc'},
-            'document': {'pdf', 'doc', 'docx', 'xls', 'xlsx'},
-        }
-        image_signatures = {
-            'jpg': (b'\xff\xd8\xff',),
-            'jpeg': (b'\xff\xd8\xff',),
-            'png': (b'\x89PNG\r\n\x1a\n',),
-            'gif': (b'GIF87a', b'GIF89a'),
-        }
-
-        extension = os.path.splitext(file.name)[1].lower().lstrip('.')
-        if file_type in allowed_extensions and extension not in allowed_extensions[file_type]:
-            logger.warning(f"不支持的文件扩展名: {extension}, 期望类型: {file_type}")
-            return False, f"不支持的文件扩展名，请上传{file_type}类型的文件"
-
-        # 获取文件的MIME类型
-        content_type = file.content_type
-        logger.debug(f"文件MIME类型: {content_type}")
-        
-        # 定义允许的文件类型
-        allowed_types = {
-            'image': ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/heic', 'image/heif'],
-            'video': ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/x-msvideo', 'video/webm', 'video/hevc'],
-            'document': [
-                'application/pdf',
-                'application/msword',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'application/vnd.ms-excel',
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            ]
-        }
-        
-        # 检查文件类型是否在允许列表中
-        if file_type in allowed_types and content_type not in allowed_types[file_type]:
-            logger.warning(f"不支持的文件类型: {content_type}, 期望类型: {file_type}")
-            return False, f"不支持的文件类型，请上传{file_type}类型的文件"
-
-        if file_type == 'image':
-            try:
-                file.seek(0)
-                head = file.read(16)
-                file.seek(0)
-            except Exception:
-                head = b''
-            signatures = image_signatures.get(extension, ())
-            if signatures and not any(head.startswith(signature) for signature in signatures):
-                logger.warning(f"文件内容与图片格式不符: {extension}")
-                return False, "文件内容与图片格式不符"
-
-        return True, None
-    except Exception as e:
-        logger.error(f"验证文件类型时出错: {str(e)}")
-        return False, f"验证文件类型时出错: {str(e)}"
-
-def validate_file_size(file, file_type):
-    """
-    验证文件大小
-    """
-    try:
-        # 定义不同类型文件的大小限制（单位：字节）
-        size_limits = {
-            'image': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
-            'video': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
-            'document': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
-            'other': settings.BLOG_FILE_MAX_UPLOAD_BYTES,
-            'avatars': 2 * 1024 * 1024  # 2MB
-        }
-        
-        # 获取文件大小限制
-        max_size = size_limits.get(file_type, size_limits['other'])
-        logger.debug(f"文件大小: {file.size}, 限制大小: {max_size}")
-        
-        # 检查文件大小
-        if file.size > max_size:
-            logger.warning(f"文件大小超出限制: {file.size} > {max_size}")
-            return False, f"文件大小不能超过{max_size/1024/1024}MB"
-        
-        return True, None
-    except Exception as e:
-        logger.error(f"验证文件大小时出错: {str(e)}")
-        return False, f"验证文件大小时出错: {str(e)}"
-
 class FileCategoryViewSet(ModelViewSet):
     """文件分类视图集"""
     queryset = FileCategory.objects.all()
     serializer_class = FileCategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
     
     def get_queryset(self):
         queryset = super().get_queryset()
-        # 只返回启用状态的分类
-        return queryset.filter(status=True)
+        return queryset
 
 class FileTagViewSet(ModelViewSet):
     """文件标签视图集"""
     queryset = FileTag.objects.all()
     serializer_class = FileTagSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
     
     def get_queryset(self):
         queryset = super().get_queryset()
-        # 只返回启用状态的标签
-        return queryset.filter(status=True)
+        return queryset
 
 class FileManagementViewSet(ModelViewSet):
     """文件管理视图集"""
     queryset = UploadFile.objects.all()
     serializer_class = UploadFileSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
     pagination_class = FilePagination
     
     def get_queryset(self):
@@ -182,7 +93,7 @@ class FileManagementViewSet(ModelViewSet):
             queryset = queryset.filter(file_type=file_type)
             
         # 按上传者过滤
-        if not self.request.user.is_staff:
+        if not self.request.user.is_staff and not self.request.user.is_superuser:
             queryset = queryset.filter(uploader=self.request.user)
             
         return queryset.order_by('-created_at')
@@ -194,7 +105,7 @@ class FileManagementViewSet(ModelViewSet):
         instance = self.get_object()
         
         # 检查权限
-        if not request.user.is_staff and instance.uploader != request.user:
+        if not request.user.is_staff and not request.user.is_superuser and instance.uploader != request.user:
             return Response(
                 {"detail": "您没有权限删除此文件"},
                 status=status.HTTP_403_FORBIDDEN
@@ -342,7 +253,7 @@ class AvatarUploadView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class FileUploadView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
     parser_classes = (MultiPartParser, FormParser)
     
     def post(self, request):

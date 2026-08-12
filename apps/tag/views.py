@@ -1,5 +1,6 @@
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
+from apps.user.permissions import IsContentEditor
 from rest_framework.response import Response
 from django.db.models import Count, Q
 from .models import Tag
@@ -11,12 +12,16 @@ from blog.request_utils import is_public_blog_request
 class TagViewSet(ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsContentEditor]
     
     def get_permissions(self):
         if is_public_blog_request(self.request) and self.action == 'list':
             return [AllowAny()]
         return super().get_permissions()
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return queryset.filter(status='active') if is_public_blog_request(self.request) else queryset
     
     def list(self, request, *args, **kwargs):
         # 获取搜索参数

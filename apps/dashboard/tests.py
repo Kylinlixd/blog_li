@@ -8,6 +8,7 @@ class DashboardStatsTests(APITestCase):
         self.user = get_user_model().objects.create_user(
             username='dashboard-editor',
             password='correct-horse-battery-staple',
+            role='editor',
         )
 
     def test_stats_require_authentication(self):

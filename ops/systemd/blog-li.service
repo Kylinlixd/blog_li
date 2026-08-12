@@ -1,0 +1,24 @@
+[Unit]
+Description=LiXD Blog Django application
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=blog
+Group=blog
+WorkingDirectory=/opt/blog_li
+EnvironmentFile=/opt/blog_li/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/blog_li/.venv/bin/gunicorn blog.wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 330 --access-logfile - --error-logfile -
+Restart=always
+RestartSec=5
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/blog_li/media
+
+[Install]
+WantedBy=multi-user.target

@@ -1,9 +1,7 @@
-from django.conf import settings
-import os
-
 from rest_framework import serializers
 from .models import UploadFile, FileCategory, FileTag
 from apps.user.serializers import UserSerializer
+from .validation import validate_file_size, validate_file_type
 
 class FileCategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -47,29 +45,12 @@ class FileUploadSerializer(serializers.Serializer):
     file_type = serializers.ChoiceField(choices=UploadFile.FILE_TYPE_CHOICES, required=True)
     
     def validate_file(self, value):
-        # 与上传视图保持同一套公开大小限制，避免入口之间出现冲突。
-        max_size = settings.BLOG_FILE_MAX_UPLOAD_BYTES
-        if value.size > max_size:
-            raise serializers.ValidationError(f"文件大小不能超过{max_size / 1024 / 1024}MB")
-        
-        # 验证文件类型
-        allowed_types = {
-            'image': ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/heic', 'image/heif'],
-            'video': ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm', 'video/hevc'],
-            'document': ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-        }
-        
         file_type = self.initial_data.get('file_type')
-        if file_type in allowed_types and value.content_type not in allowed_types[file_type]:
-            raise serializers.ValidationError(f"不支持的文件类型，请上传{file_type}类型的文件")
-
-        allowed_extensions = {
-            'image': {'jpg', 'jpeg', 'png', 'gif', 'heic', 'heif'},
-            'video': {'mp4', 'mov', 'm4v', 'avi', 'webm', 'hevc'},
-            'document': {'pdf', 'doc', 'docx', 'xls', 'xlsx'},
-        }
-        extension = os.path.splitext(value.name)[1].lower().lstrip('.')
-        if file_type in allowed_extensions and extension not in allowed_extensions[file_type]:
-            raise serializers.ValidationError(f"不支持的文件扩展名，请上传{file_type}类型的文件")
+        valid, message = validate_file_type(value, file_type)
+        if not valid:
+            raise serializers.ValidationError(message)
+        valid, message = validate_file_size(value, file_type)
+        if not valid:
+            raise serializers.ValidationError(message)
         
         return value

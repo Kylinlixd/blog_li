@@ -47,10 +47,11 @@ class TokenBlacklist(models.Model):
             
         expires_at = timezone.now() + expires_delta
         
-        return cls.objects.create(
+        record, _ = cls.objects.get_or_create(
             token=token,
-            expires_at=expires_at
+            defaults={'expires_at': expires_at},
         )
+        return record
     
     @classmethod
     def is_blacklisted(cls, token):

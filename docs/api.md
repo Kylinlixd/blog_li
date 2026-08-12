@@ -30,15 +30,15 @@ Content-Type: application/json
 {"username":"admin","password":"your-password"}
 ```
 
-成功响应的 `data` 包含 `access` 与 `refresh`。
+成功响应的 `data` 只包含短期 `access`。长期 `refresh` 由服务端写入 `HttpOnly`、`Secure`、`SameSite=Lax` Cookie，前端脚本和 localStorage 都无法读取。
 
 ### 其他认证接口
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/auth/register/` | 注册 |
-| POST | `/api/token/refresh/` | 请求体传 `refresh` |
-| POST | `/api/auth/logout/` | 拉黑当前 access token |
+| POST | `/api/token/refresh/` | 自动读取并轮换 HttpOnly Cookie |
+| POST | `/api/auth/logout/` | 拉黑当前 access 与 refresh token 并清理 Cookie |
 | GET | `/api/auth/info/` | 当前用户 |
 | PUT | `/api/auth/password/` | `old_password`、`new_password` |
 | PUT | `/api/auth/profile/` | 部分更新资料 |

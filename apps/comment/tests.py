@@ -34,6 +34,26 @@ class PublicCommentVisibilityTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['total'], 1)
         self.assertEqual(response.data['data']['list'][0]['content'], '公开评论')
+        self.assertNotIn('email', response.data['data']['list'][0])
+
+    def test_public_list_does_not_expose_comments_from_a_draft(self):
+        draft = Dynamic.objects.create(
+            author=self.user,
+            title='尚未公开的文章',
+            content='草稿正文',
+            status='draft',
+        )
+        Comment.objects.create(
+            author=self.user,
+            dynamic=draft,
+            content='不应展示',
+            status='approved',
+        )
+
+        response = self.client.get('/api/blog/comments/', {'dynamic_id': draft.pk})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['total'], 0)
 
     def test_public_comment_uses_a_dedicated_guest_account(self):
         response = self.client.post('/api/blog/comments/', {

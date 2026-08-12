@@ -11,7 +11,7 @@ class AuthTests(APITestCase):
             password='correct-horse-battery-staple',
         )
 
-    def test_login_returns_access_and_refresh_tokens(self):
+    def test_login_returns_access_and_sets_http_only_refresh_cookie(self):
         response = self.client.post('/api/auth/login/', {
             'username': self.user.username,
             'password': 'correct-horse-battery-staple',
@@ -19,7 +19,23 @@ class AuthTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('access', response.data['data'])
-        self.assertIn('refresh', response.data['data'])
+        self.assertNotIn('refresh', response.data['data'])
+        cookie = response.cookies['refresh_token']
+        self.assertTrue(cookie['httponly'])
+        self.assertEqual(cookie['samesite'], 'Lax')
+
+    def test_refresh_uses_the_http_only_cookie_without_returning_a_refresh_token(self):
+        login_response = self.client.post('/api/auth/login/', {
+            'username': self.user.username,
+            'password': 'correct-horse-battery-staple',
+        })
+
+        response = self.client.post('/api/token/refresh/', {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data['data'])
+        self.assertNotIn('refresh', response.data['data'])
+        self.assertNotEqual(response.data['data']['access'], login_response.data['data']['access'])
 
     def test_login_accepts_email_after_username_change(self):
         self.user.email = 'editor@example.com'
@@ -104,3 +120,10 @@ class AuthTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password('New-safe-password-123'))
+
+    def test_regular_user_cannot_enumerate_user_management_resources(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get('/api/users/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

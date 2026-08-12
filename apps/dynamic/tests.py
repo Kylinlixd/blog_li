@@ -18,6 +18,7 @@ class DynamicAPITests(APITestCase):
             username='editor',
             email='editor@example.com',
             password='correct-horse-battery-staple',
+            role='editor',
         )
         self.category = Category.objects.create(name='工程实践')
         self.tag = Tag.objects.create(name='Vue')
@@ -49,6 +50,18 @@ class DynamicAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_regular_authenticated_user_cannot_open_admin_dynamic_list(self):
+        regular = get_user_model().objects.create_user(
+            username='reader',
+            email='reader@example.com',
+            password='safe-password-123',
+        )
+        self.client.force_authenticate(regular)
+
+        response = self.client.get('/api/dynamics/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_public_search_matches_title(self):
         response = self.client.get('/api/blog/dynamics/', {'keyword': '请求层'})
 
@@ -61,6 +74,14 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['category']['name'], self.category.name)
         self.assertEqual(response.data['data']['tags'][0]['name'], self.tag.name)
+
+    def test_public_detail_does_not_expose_private_author_fields(self):
+        response = self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
+
+        author = response.data['data']['author']
+        self.assertNotIn('email', author)
+        self.assertNotIn('role', author)
+        self.assertNotIn('permissions', author)
 
     def test_detail_includes_content_type_and_media_urls(self):
         video = Dynamic.objects.create(

@@ -130,7 +130,12 @@ class UploadTypeValidationTests(SimpleTestCase):
         ]
         for name, content_type, file_type in samples:
             with self.subTest(name=name):
-                uploaded = SimpleUploadedFile(name, b"media", content_type=content_type)
+                payload = b"media"
+                if name.lower().endswith(('.mov', '.m4v')):
+                    payload = b"\x00\x00\x00\x18ftypmp42"
+                if name.lower().endswith(('.heic', '.heif')):
+                    payload = b"\x00\x00\x00\x18ftypheic"
+                uploaded = SimpleUploadedFile(name, payload, content_type=content_type)
                 self.assertEqual((True, None), validate_file_type(uploaded, file_type))
 
     def test_unknown_media_format_is_rejected(self):
@@ -287,6 +292,7 @@ class FileStorageViewTests(APITestCase):
             username="storage-editor",
             email="storage-editor@example.com",
             password="safe-password-123",
+            role="editor",
         )
         self.client.force_authenticate(self.user)
 
@@ -338,7 +344,7 @@ class FileStorageViewTests(APITestCase):
             ]
 
             response = self.client.post("/api/upload/upload/", {
-                "file": SimpleUploadedFile("IMG_1001.MOV", b"mov", content_type="video/quicktime"),
+                "file": SimpleUploadedFile("IMG_1001.MOV", b"\x00\x00\x00\x18ftypqt  ", content_type="video/quicktime"),
                 "file_type": "video",
             })
 
@@ -372,7 +378,7 @@ class FileStorageViewTests(APITestCase):
             backend.save.side_effect = [StoredObject("xion", "video-key", 3, "abc", "video/mp4"), StorageUnavailable("down")]
 
             response = self.client.post("/api/upload/upload/", {
-                "file": SimpleUploadedFile("IMG_1001.MOV", b"mov", content_type="video/quicktime"),
+                "file": SimpleUploadedFile("IMG_1001.MOV", b"\x00\x00\x00\x18ftypqt  ", content_type="video/quicktime"),
                 "file_type": "video",
             })
 

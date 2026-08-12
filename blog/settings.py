@@ -237,7 +237,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),  # 访问令牌有效期改为1小时
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # 短期访问令牌降低泄露后的有效窗口
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  # 刷新令牌有效期改为7天
     'ROTATE_REFRESH_TOKENS': True,  # 每次刷新令牌时都生成新的刷新令牌
     'BLACKLIST_AFTER_ROTATION': True,  # 刷新令牌后，将旧的刷新令牌加入黑名单

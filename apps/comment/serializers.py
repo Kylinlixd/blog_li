@@ -33,7 +33,7 @@ class CommentSerializer(serializers.ModelSerializer):
     
     def get_avatar(self, obj):
         if obj.author and obj.author.avatar:
-            return obj.author.avatar.url
+            return obj.author.avatar
         return '/default-avatar.png'
     
     def get_content(self, obj):
@@ -43,12 +43,25 @@ class CommentSerializer(serializers.ModelSerializer):
         # 已通过或已拒绝的评论直接返回原内容
         return obj.content
 
+
+class PublicCommentSerializer(CommentSerializer):
+    class Meta(CommentSerializer.Meta):
+        fields = [
+            'id', 'dynamic_id', 'content', 'nickname',
+            'avatar', 'createTime', 'status'
+        ]
+
 class CommentCreateSerializer(serializers.ModelSerializer):
     dynamic_id = serializers.IntegerField(write_only=True)
     
     class Meta:
         model = Comment
         fields = ['content', 'dynamic_id', 'nickname', 'email']
+        extra_kwargs = {
+            'content': {'max_length': 2000, 'allow_blank': False, 'trim_whitespace': True},
+            'nickname': {'max_length': 50, 'allow_blank': True},
+            'email': {'max_length': 254, 'allow_blank': True},
+        }
 
     def validate_content(self, value):
         if is_public_blog_request(self.context['request']):
