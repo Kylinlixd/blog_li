@@ -34,7 +34,12 @@ DB_HOST=127.0.0.1
 DB_PORT=3306
 ```
 
-限制 `.env` 权限：`chmod 600 .env`。
+限制 `.env` 权限：应用以独立的 `blog` 用户运行时，使用 root 所有、blog 组可读的权限，避免 Gunicorn 无法加载配置：
+
+```bash
+chown root:blog .env
+chmod 640 .env
+```
 
 仅在所有子域都已永久启用 HTTPS 时使用 `DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS=True`；确认无误后再考虑开启 HSTS preload。
 
@@ -99,13 +104,18 @@ Description=Kylin Blog Gunicorn
 After=network.target mysql.service
 
 [Service]
-User=www-data
-Group=www-data
+User=blog
+Group=blog
 WorkingDirectory=/srv/blog_li
 EnvironmentFile=/srv/blog_li/.env
 ExecStart=/srv/blog_li/.venv/bin/gunicorn blog.wsgi:application --workers 3 --bind 127.0.0.1:8000 --timeout 330 --access-logfile - --error-logfile -
 Restart=on-failure
 TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/srv/blog_li/media
 
 [Install]
 WantedBy=multi-user.target
@@ -115,6 +125,18 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable --now kylin-blog
 ```
+
+公开媒体目录需要让 Nginx 能够穿越目录并读取文件，但不需要写权限：
+
+```bash
+find /srv/blog_li/media -type d -exec chmod 755 {} +
+find /srv/blog_li/media -type f -exec chmod 644 {} +
+chown -R blog:blog /srv/blog_li/media
+```
+
+### SSH 远程维护边界
+
+如果业务明确要求保留 root 密码登录，使用 `/etc/ssh/sshd_config.d/99-blog-hardening.conf` 管理配置，并在重载前执行 `sshd -t`。推荐同时保留以下限制：`MaxAuthTries 3`、`LoginGraceTime 20`、`X11Forwarding no`、`ClientAliveInterval 300`、`ClientAliveCountMax 2`。修改后使用一条新的密码 SSH 连接验证，不要只依赖当前会话。
 
 ## 4. Nginx 要点
 
