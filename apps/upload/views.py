@@ -26,6 +26,7 @@ from .serializers import (
 )
 from .storage_backends import (
     StorageNotFound,
+    StorageCapacityReached,
     StorageUnavailable,
     backend_for_file,
     get_storage_backend,
@@ -357,6 +358,15 @@ class FileUploadView(APIView):
                 'message': '文件上传成功'
             })
             
+        except StorageCapacityReached as error:
+            _delete_stored_objects(backend, stored, poster_stored)
+            logger.warning("存储空间达到阈值，暂停上传: %s", error)
+            return Response({
+                'code': 'storage_paused',
+                'message': str(error) or '存储空间已达到安全阈值，暂时停止上传；已有文件仍可读取，释放空间后会自动恢复。',
+                'retryable': True,
+                'data': None,
+            }, status=status.HTTP_507_INSUFFICIENT_STORAGE)
         except StorageUnavailable as error:
             _delete_stored_objects(backend, stored, poster_stored)
             logger.warning("存储服务上传失败: %s", error)

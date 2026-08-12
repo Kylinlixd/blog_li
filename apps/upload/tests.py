@@ -17,7 +17,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APITestCase
 
 from apps.upload.models import UploadFile
-from apps.upload.storage_backends import OpenedObject, StoredObject, StorageUnavailable
+from apps.upload.storage_backends import OpenedObject, StoredObject, StorageUnavailable, StorageCapacityReached
 from apps.upload.views import ensure_upload_directories, validate_file_size
 
 
@@ -186,6 +186,29 @@ class StorageBackendTests(SimpleTestCase):
         self.assertEqual("abc", stored.checksum)
         client.upload_file.assert_called_once()
         client.close.assert_called_once_with()
+
+    @override_settings(
+        XION_STORAGE_ENABLED=True,
+        XION_BASE_URL="http://127.0.0.1:8081",
+        XION_SERVICE_TOKEN="secret",
+    )
+    @patch("apps.upload.storage_backends.XionClient")
+    def test_xion_backend_preserves_capacity_pause(self, client_type):
+        from apps.upload.storage_backends import XionStorageBackend
+
+        client = client_type.return_value
+        from astrastore_xion import XionHTTPError
+        client.upload_file.side_effect = XionHTTPError(
+            507, "storage_paused", "存储空间已达到安全阈值，暂时停止上传；释放空间后会自动恢复。"
+        )
+
+        with self.assertRaises(StorageCapacityReached) as raised:
+            XionStorageBackend().save(
+                SimpleUploadedFile("a.txt", b"abc", content_type="text/plain"),
+                "document",
+            )
+
+        self.assertIn("自动恢复", str(raised.exception))
 
     def test_local_backend_writes_relative_safe_key_and_checksum(self):
         from apps.upload.storage_backends import LocalStorageBackend
@@ -385,6 +408,22 @@ class FileStorageViewTests(APITestCase):
         self.assertEqual(503, response.status_code)
         backend.delete.assert_called_once_with("video-key")
         self.assertFalse(UploadFile.objects.exists())
+
+    @patch("apps.upload.views.get_storage_backend")
+    def test_upload_returns_friendly_capacity_pause(self, backend_factory):
+        backend_factory.return_value.save.side_effect = StorageCapacityReached(
+            "存储空间已达到安全阈值，暂时停止上传；已有文件仍可读取，释放空间后会自动恢复。"
+        )
+
+        response = self.client.post("/api/upload/upload/", {
+            "file": SimpleUploadedFile("a.txt", b"abc", content_type="text/plain"),
+            "file_type": "other",
+        })
+
+        self.assertEqual(507, response.status_code)
+        self.assertEqual("storage_paused", response.data["code"])
+        self.assertTrue(response.data["retryable"])
+        self.assertIn("自动恢复", response.data["message"])
 
     @patch("apps.upload.views.get_storage_backend")
     def test_upload_rejects_unknown_file_type_before_storage(self, backend_factory):

@@ -21,6 +21,10 @@ class StorageUnavailable(StorageError):
     """The configured storage backend is not currently available."""
 
 
+class StorageCapacityReached(StorageUnavailable):
+    """Xion paused writes because the configured storage threshold was reached."""
+
+
 class StorageNotFound(StorageError):
     """The physical file is already absent."""
 
@@ -126,6 +130,10 @@ class XionStorageBackend:
                 Path(uploaded_file.name).name,
                 {"file_type": _safe_file_type(file_type)},
             )
+        except XionHTTPError as error:
+            if error.code == "storage_paused" or error.status_code == 507:
+                raise StorageCapacityReached(error.message) from error
+            raise StorageUnavailable("AstraStoreXion 上传失败") from error
         except XionError as error:
             raise StorageUnavailable("AstraStoreXion 上传失败") from error
         finally:
