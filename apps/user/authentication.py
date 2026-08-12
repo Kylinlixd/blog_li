@@ -4,12 +4,18 @@ from django.utils.translation import gettext_lazy as _
 import jwt
 from django.conf import settings
 from .models import TokenBlacklist
+from blog.request_utils import is_public_blog_request
 
 class CustomJWTAuthentication(JWTAuthentication):
     """
     自定义JWT认证后端，添加黑名单检查
     """
     def authenticate(self, request):
+        # 公开博客接口不应因旧页面携带的失效管理令牌而变成 401。
+        # 公开接口本身不依赖登录态，直接按匿名请求继续权限判断。
+        if is_public_blog_request(request):
+            return None
+
         auth_result = super().authenticate(request)
         if auth_result is None:
             return None

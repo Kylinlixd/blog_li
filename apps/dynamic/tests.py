@@ -45,6 +45,14 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.data['data']['total'], 1)
         self.assertEqual(response.data['data']['items'][0]['title'], self.published.title)
 
+    def test_public_list_ignores_an_invalid_bearer_token(self):
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer stale-admin-token')
+
+        response = self.client.get('/api/blog/dynamics/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['total'], 1)
+
     def test_admin_list_requires_authentication(self):
         response = self.client.get('/api/dynamics/')
 
