@@ -30,7 +30,7 @@ class DynamicAPITests(APITestCase):
             status='published',
         )
         self.published.tags.add(self.tag)
-        Dynamic.objects.create(
+        self.draft = Dynamic.objects.create(
             author=self.user,
             category=self.category,
             title='尚未公开',
@@ -82,6 +82,16 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['category']['name'], self.category.name)
         self.assertEqual(response.data['data']['tags'][0]['name'], self.tag.name)
+
+    def test_public_detail_returns_json_404_for_missing_or_unpublished_dynamic(self):
+        for dynamic_id in (999999, self.draft.pk):
+            response = self.client.get(f'/api/blog/dynamics/{dynamic_id}/')
+            payload = response.data if hasattr(response, 'data') else response.json()
+
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+            self.assertEqual(payload['code'], 404)
+            self.assertEqual(payload['message'], '文章不存在或已被删除')
+            self.assertIsNone(payload['data'])
 
     def test_public_detail_does_not_expose_private_author_fields(self):
         response = self.client.get(f'/api/blog/dynamics/{self.published.pk}/')

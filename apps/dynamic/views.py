@@ -16,6 +16,7 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from apps.category.models import Category
 from apps.tag.models import Tag
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
@@ -213,6 +214,12 @@ class DynamicViewSet(ModelViewSet):
                 }
             })
             
+        except Http404:
+            return Response({
+                'code': 404,
+                'message': '文章不存在或已被删除',
+                'data': None
+            }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.exception('Admin dynamic detail failed')
             return Response({

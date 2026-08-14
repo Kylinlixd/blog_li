@@ -134,7 +134,12 @@ class APIExceptionMiddleware(MiddlewareMixin):
         处理404错误
         """
         # 只处理API请求的404
-        if response.status_code == 404 and (request.path.startswith('/api') or request.path.startswith('/blog')):
+        content_type = response.get('Content-Type', '').split(';', 1)[0].strip().lower()
+        if (
+            response.status_code == 404
+            and content_type != 'application/json'
+            and (request.path.startswith('/api') or request.path.startswith('/blog'))
+        ):
             response_data = {
                 'code': status.HTTP_404_NOT_FOUND,
                 'message': '请求的接口不存在',
