@@ -103,8 +103,8 @@ class UploadDirectoryTests(SimpleTestCase):
 
 
 class UploadSizeContractTests(SimpleTestCase):
-    def test_all_file_types_share_the_public_50_mb_limit(self):
-        maximum = 50 * 1024 * 1024
+    def test_all_file_types_share_the_public_1_gb_limit(self):
+        maximum = 1024 * 1024 * 1024
 
         for file_type in ("image", "video", "document", "other"):
             with self.subTest(file_type=file_type):
@@ -114,7 +114,7 @@ class UploadSizeContractTests(SimpleTestCase):
                 )
                 allowed, message = validate_file_size(SimpleNamespace(size=maximum + 1), file_type)
                 self.assertFalse(allowed)
-                self.assertIn("50.0MB", message)
+                self.assertIn("1024.0MB", message)
 
 
 class UploadTypeValidationTests(SimpleTestCase):
