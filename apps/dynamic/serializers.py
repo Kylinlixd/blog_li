@@ -11,6 +11,33 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _media_urls(obj):
+    media = []
+    seen_urls = set()
+
+    def add_media(item):
+        url = item['url']
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            media.append(item)
+
+    files = list(obj.files.all())
+    for file in files:
+        add_media({
+            'url': file.file_url,
+            'type': file.file_type,
+            'name': file.name,
+            'size': file.file_size,
+            'poster_url': file.poster_url,
+        })
+
+    for url in obj.media_urls:
+        if isinstance(url, str):
+            add_media({'url': url, 'type': obj.type})
+
+    return media
+
+
 class ImageSerializer(serializers.Serializer):
     url = serializers.CharField()
     width = serializers.IntegerField(required=False)
@@ -56,28 +83,7 @@ class DynamicSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'author', 'view_count', 'created_at', 'updated_at']
     
     def get_mediaUrls(self, obj):
-        # 获取关联的文件
-        files = [f for f in obj.files.all() if f.file_type == obj.type] if obj.type in {'image', 'audio', 'video'} else []
-        logger.debug(f"动态 {obj.id} 的关联文件数量: {len(files)}")
-        
-        if not files:
-            logger.debug(f"动态 {obj.id} 没有关联文件")
-            return []
-
-        logger.debug(f"动态 {obj.id} 过滤后的文件数量: {len(files)}")
-        logger.debug(f"动态类型: {obj.type}")
-        
-        # 返回文件信息列表
-        result = [{
-            'url': file.file_url,
-            'type': file.file_type,
-            'name': file.name,
-            'size': file.file_size,
-            'poster_url': file.poster_url,
-        } for file in files]
-        
-        logger.debug(f"返回的文件信息: {result}")
-        return result
+        return _media_urls(obj)
 
 
 class AdjacentDynamicSerializer(serializers.Serializer):
@@ -270,16 +276,4 @@ class DynamicListSerializer(serializers.ModelSerializer):
         return getattr(obj, 'comments_count', obj.comments.count() if hasattr(obj, 'comments') else 0)
         
     def get_mediaUrls(self, obj):
-        # 获取关联的文件
-        files = [f for f in obj.files.all() if f.file_type == obj.type] if obj.type in {'image', 'audio', 'video'} else []
-        
-        if not files:
-            return []
-            
-        # 返回文件信息列表
-        return [{
-            'url': file.file_url,
-            'type': file.file_type,
-            'name': file.name,
-            'size': file.file_size
-        } for file in files]
+        return _media_urls(obj)

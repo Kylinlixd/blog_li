@@ -6,7 +6,7 @@ from apps.dynamic.serializers import (
     DynamicSerializer, AdjacentDynamicSerializer,
     HotDynamicSerializer, RecentDynamicSerializer,
     AdminDynamicSerializer, SimpleDynamicSerializer,
-    DynamicCreateSerializer, DynamicUpdateSerializer, DynamicListSerializer
+    DynamicCreateSerializer, DynamicUpdateSerializer, DynamicListSerializer, _media_urls
 )
 from django.db.models import Q, F, Count, Prefetch
 from rest_framework.response import Response
@@ -198,7 +198,7 @@ class DynamicViewSet(ModelViewSet):
                     'content': instance.content,
                     'type': instance.type,
                     'status': instance.status,
-                    'mediaUrls': list(instance.media_urls),
+                    'mediaUrls': _media_urls(instance),
                     'created_at': instance.created_at,
                     'views': instance.view_count,
                     'likes': instance.like_count,

@@ -117,7 +117,34 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['type'], 'video')
         self.assertEqual(response.data['data']['status'], 'published')
-        self.assertEqual(response.data['data']['mediaUrls'], ['/api/upload/public/48/'])
+        self.assertEqual(response.data['data']['mediaUrls'], [{
+            'url': '/api/upload/public/48/',
+            'type': 'video',
+        }])
+
+    def test_detail_serializes_all_attached_media_as_objects(self):
+        image = UploadFile.objects.create(
+            name='cover.png', file_type='image', file_size=3,
+            file_url='/api/upload/public/1/', uploader=self.user, is_public=True,
+        )
+        audio = UploadFile.objects.create(
+            name='note.mp3', file_type='audio', file_size=5,
+            file_url='/api/upload/public/2/', uploader=self.user, is_public=True,
+        )
+        self.published.files.add(image, audio)
+        self.published.media_urls = ['/media/legacy.mp3']
+        self.published.save(update_fields=['media_urls'])
+
+        response = self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
+
+        media_by_url = {item['url']: item for item in response.data['data']['mediaUrls']}
+        self.assertEqual(media_by_url[image.file_url], {
+            'url': image.file_url, 'type': 'image', 'name': image.name, 'size': image.file_size, 'poster_url': '',
+        })
+        self.assertEqual(media_by_url[audio.file_url], {
+            'url': audio.file_url, 'type': 'audio', 'name': audio.name, 'size': audio.file_size, 'poster_url': '',
+        })
+        self.assertEqual(media_by_url['/media/legacy.mp3'], {'url': '/media/legacy.mp3', 'type': 'text'})
 
     def test_reading_detail_does_not_mutate_view_count(self):
         self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
