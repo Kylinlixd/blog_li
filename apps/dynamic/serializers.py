@@ -11,6 +11,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _dynamic_type_for_file_ids(file_ids):
+    for file in UploadFile.objects.filter(pk__in=file_ids).order_by('pk'):
+        return file.file_type if file.file_type in {'image', 'audio', 'video'} else 'text'
+    return 'text'
+
+
 def _media_urls(obj):
     media = []
     seen_urls = set()
@@ -21,9 +27,10 @@ def _media_urls(obj):
             seen_urls.add(url)
             media.append(item)
 
-    files = list(obj.files.all())
+    files = list(obj.files.all().order_by('pk'))
     for file in files:
         add_media({
+            'id': file.pk,
             'url': file.file_url,
             'type': file.file_type,
             'name': file.name,
@@ -196,12 +203,15 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # 提取特殊字段
         media_urls = validated_data.pop('mediaUrls', [])
-        file_ids = validated_data.pop('fileIds', [])
+        file_ids = validated_data.pop('fileIds', serializers.empty)
         category_id = validated_data.pop('categoryId', None)
         tags = validated_data.pop('tags', [])
         created_at = validated_data.pop('createdAt', None)
         
         # 创建动态实例
+        if file_ids:
+            validated_data['type'] = _dynamic_type_for_file_ids(file_ids)
+
         instance = Dynamic.objects.create(
             author=self.context['request'].user,
             media_urls=media_urls,
@@ -210,7 +220,7 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
         )
         
         # 添加文件关联
-        if file_ids:
+        if file_ids is not serializers.empty:
             instance.files.set(file_ids)
         
         # 添加标签
@@ -237,6 +247,8 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
             instance.media_urls = media_urls
         if category_id is not serializers.empty:
             instance.category_id = category_id
+        if file_ids:
+            instance.type = _dynamic_type_for_file_ids(file_ids)
         instance.save()
 
         if file_ids is not serializers.empty:

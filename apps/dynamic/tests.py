@@ -139,12 +139,50 @@ class DynamicAPITests(APITestCase):
 
         media_by_url = {item['url']: item for item in response.data['data']['mediaUrls']}
         self.assertEqual(media_by_url[image.file_url], {
-            'url': image.file_url, 'type': 'image', 'name': image.name, 'size': image.file_size, 'poster_url': '',
+            'id': image.pk, 'url': image.file_url, 'type': 'image', 'name': image.name, 'size': image.file_size, 'poster_url': '',
         })
         self.assertEqual(media_by_url[audio.file_url], {
-            'url': audio.file_url, 'type': 'audio', 'name': audio.name, 'size': audio.file_size, 'poster_url': '',
+            'id': audio.pk, 'url': audio.file_url, 'type': 'audio', 'name': audio.name, 'size': audio.file_size, 'poster_url': '',
         })
         self.assertEqual(media_by_url['/media/legacy.mp3'], {'url': '/media/legacy.mp3', 'type': 'text'})
+
+    def test_detail_orders_attached_media_by_file_id(self):
+        image = UploadFile.objects.create(
+            name='cover.png', file_type='image', file_size=3,
+            file_url='/api/upload/public/1/', uploader=self.user, is_public=True,
+        )
+        audio = UploadFile.objects.create(
+            name='note.mp3', file_type='audio', file_size=5,
+            file_url='/api/upload/public/2/', uploader=self.user, is_public=True,
+        )
+        self.published.files.add(audio, image)
+
+        response = self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
+
+        self.assertEqual(
+            [item['id'] for item in response.data['data']['mediaUrls']],
+            [image.pk, audio.pk],
+        )
+
+    def test_create_derives_type_from_the_first_attached_file(self):
+        image = UploadFile.objects.create(
+            name='cover.png', file_type='image', file_size=3,
+            file_url='/api/upload/public/1/', uploader=self.user, is_public=True,
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post('/api/dynamics/', {
+            'title': '自动类型',
+            'content': '正文',
+            'type': 'video',
+            'status': 'draft',
+            'mediaUrls': [image.file_url],
+            'fileIds': [image.pk],
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        created = Dynamic.objects.get(pk=response.data['data']['id'])
+        self.assertEqual(created.type, 'image')
 
     def test_reading_detail_does_not_mutate_view_count(self):
         self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
@@ -256,6 +294,27 @@ class DynamicAPITests(APITestCase):
             [second_tag.pk],
         )
         self.assertEqual(self.published.media_urls, ['/media/cover.png'])
+        self.assertEqual(self.published.type, 'image')
+
+    def test_update_with_only_file_ids_derives_type(self):
+        image = UploadFile.objects.create(
+            name='cover.png', file_type='image', file_size=3,
+            file_url='/api/upload/public/1/', uploader=self.user, is_public=True,
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.put(f'/api/dynamics/{self.published.pk}/', {
+            'title': self.published.title,
+            'content': self.published.content,
+            'type': 'video',
+            'status': self.published.status,
+            'fileIds': [image.pk],
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.published.refresh_from_db()
+        self.assertEqual(self.published.type, 'image')
+        self.assertEqual(list(self.published.files.values_list('id', flat=True)), [image.pk])
 
     @patch('apps.dynamic.views.Category.objects.get', side_effect=RuntimeError('database secret'))
     def test_category_errors_do_not_expose_internal_exception(self, _category_get):

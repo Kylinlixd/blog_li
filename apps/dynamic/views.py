@@ -243,7 +243,7 @@ class DynamicViewSet(ModelViewSet):
         instance = self.get_object()
         
         # 如果请求包含mediaUrls、categoryId或tags字段，则使用DynamicCreateSerializer
-        if any(field in request.data for field in ['mediaUrls', 'categoryId', 'tags']):
+        if any(field in request.data for field in ['mediaUrls', 'fileIds', 'categoryId', 'tags']):
             serializer = DynamicCreateSerializer(instance, data=request.data, partial=partial, context={'request': request})
         else:
             serializer = self.get_serializer(instance, data=request.data, partial=partial, context={'request': request})
