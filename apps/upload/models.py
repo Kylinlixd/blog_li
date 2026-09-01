@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -59,6 +61,13 @@ class UploadFile(models.Model):
     file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES, help_text="文件类型")
     file_size = models.BigIntegerField(help_text="文件大小(字节)")
     file_url = models.CharField(max_length=500, help_text="文件URL")
+    public_token = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="公开下载脱敏令牌",
+    )
     storage_backend = models.CharField(
         max_length=16,
         choices=STORAGE_BACKEND_CHOICES,
@@ -98,3 +107,8 @@ class UploadFile(models.Model):
         """增加下载次数"""
         self.download_count += 1
         self.save(update_fields=['download_count'])
+
+    def save(self, *args, **kwargs):
+        if not self.public_token:
+            self.public_token = uuid.uuid4().hex
+        super().save(*args, **kwargs)

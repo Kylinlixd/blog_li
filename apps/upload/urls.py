@@ -16,7 +16,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('upload/', FileUploadView.as_view(), name='file-upload'),
     path('avatar/', AvatarUploadView.as_view(), name='avatar-upload'),
-    path('public/<int:pk>/', PublicFileDownloadView.as_view(), name='public-file-download'),
-    path('poster/<int:pk>/', PublicFilePosterDownloadView.as_view(), name='public-file-poster'),
+    path('public/<str:token>/', PublicFileDownloadView.as_view(), name='public-file-download'),
+    path('poster/<str:token>/', PublicFilePosterDownloadView.as_view(), name='public-file-poster'),
     path('files/<int:pk>/poster/', PrivateFilePosterDownloadView.as_view(), name='private-file-poster'),
 ]

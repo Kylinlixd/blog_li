@@ -340,7 +340,7 @@ class FileStorageViewTests(APITestCase):
         self.assertEqual("xion", uploaded.storage_backend)
         self.assertEqual("b8c21d60-e970-4df5-890b-0d2dba93a654", uploaded.storage_key)
         self.assertEqual("abc", uploaded.checksum)
-        self.assertEqual(f"/api/upload/public/{uploaded.id}/", uploaded.file_url)
+        self.assertEqual(f"/api/upload/public/{uploaded.public_token}/", uploaded.file_url)
         self.assertEqual("xion", response.data["data"]["storage_backend"])
 
     @patch("apps.upload.views.process_uploaded_media")
@@ -376,8 +376,11 @@ class FileStorageViewTests(APITestCase):
         self.assertEqual("IMG_1001.mp4", uploaded.name)
         self.assertEqual(3, uploaded.file_size)
         self.assertEqual("video/mp4", uploaded.content_type)
-        self.assertEqual("/api/upload/poster/1/", uploaded.poster_url)
-        self.assertEqual("/api/upload/poster/1/", response.data["data"]["poster_url"])
+        self.assertEqual(f"/api/upload/poster/{uploaded.public_token}/", uploaded.poster_url)
+        self.assertEqual(
+            f"/api/upload/poster/{uploaded.public_token}/",
+            response.data["data"]["poster_url"],
+        )
         process.return_value.cleanup.assert_called_once_with()
 
     @patch("apps.upload.views.process_uploaded_media")
@@ -502,7 +505,7 @@ class FileStorageViewTests(APITestCase):
         )
         self.client.force_authenticate(user=None)
 
-        response = self.client.get(f"/api/upload/public/{uploaded.id}/")
+        response = self.client.get(f"/api/upload/public/{uploaded.public_token}/")
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(b"public", b"".join(response.streaming_content))
@@ -527,7 +530,7 @@ class FileStorageViewTests(APITestCase):
         )
         self.client.force_authenticate(user=None)
 
-        response = self.client.get(f"/api/upload/public/{uploaded.id}/")
+        response = self.client.get(f"/api/upload/public/{uploaded.public_token}/")
 
         self.assertEqual(200, response.status_code)
         self.assertEqual("image/png", response["Content-Type"])
@@ -547,6 +550,14 @@ class FileStorageViewTests(APITestCase):
 
     def test_private_file_is_not_available_from_public_route(self):
         uploaded = self._create_file(is_public=False)
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(f"/api/upload/public/{uploaded.public_token}/")
+
+        self.assertEqual(404, response.status_code)
+
+    def test_public_download_does_not_accept_sequential_id(self):
+        uploaded = self._create_file(is_public=True)
         self.client.force_authenticate(user=None)
 
         response = self.client.get(f"/api/upload/public/{uploaded.id}/")
