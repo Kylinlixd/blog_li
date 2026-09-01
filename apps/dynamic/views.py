@@ -6,7 +6,8 @@ from apps.dynamic.serializers import (
     DynamicSerializer, AdjacentDynamicSerializer,
     HotDynamicSerializer, RecentDynamicSerializer,
     AdminDynamicSerializer, SimpleDynamicSerializer,
-    DynamicCreateSerializer, DynamicUpdateSerializer, DynamicListSerializer, _media_urls
+    DynamicCreateSerializer, DynamicUpdateSerializer,
+    DynamicListSerializer, PublicDynamicListSerializer, _media_urls,
 )
 from django.db.models import Q, F, Count, Prefetch
 from rest_framework.response import Response
@@ -159,6 +160,8 @@ class DynamicViewSet(ModelViewSet):
         elif self.action in ['update', 'partial_update']:
             return DynamicUpdateSerializer
         elif self.action == 'list':
+            if is_public_blog_request(self.request):
+                return PublicDynamicListSerializer
             return DynamicListSerializer
         return DynamicSerializer
     
@@ -285,11 +288,12 @@ class DynamicViewSet(ModelViewSet):
             status='published'
         ).order_by('created_at').first()
         
+        serializer = PublicDynamicListSerializer
         return Response({
             'code': 200,
             'data': {
-                'prev': DynamicListSerializer(prev).data if prev else None,
-                'next': DynamicListSerializer(next).data if next else None
+                'prev': serializer(prev).data if prev else None,
+                'next': serializer(next).data if next else None
             },
             'message': '获取相邻动态成功'
         })
@@ -394,7 +398,7 @@ class DynamicViewSet(ModelViewSet):
 
 class HotDynamicsView(ReadOnlyModelViewSet):
     queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', 'files', 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-view_count')
-    serializer_class = DynamicListSerializer
+    serializer_class = PublicDynamicListSerializer
     permission_classes = []
     
     def list(self, request, *args, **kwargs):
@@ -410,7 +414,7 @@ class HotDynamicsView(ReadOnlyModelViewSet):
 
 class RecentDynamicsView(ReadOnlyModelViewSet):
     queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', 'files', 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-created_at')
-    serializer_class = DynamicListSerializer
+    serializer_class = PublicDynamicListSerializer
     permission_classes = []
     
     def list(self, request, *args, **kwargs):
@@ -449,7 +453,7 @@ class CategoryDynamicsView(APIView):
             result = paginator.paginate_queryset(dynamics, request)
             
             # 序列化动态列表
-            dynamics_serializer = DynamicListSerializer(result, many=True)
+            dynamics_serializer = PublicDynamicListSerializer(result, many=True)
             
             # 返回数据
             return Response({
@@ -497,7 +501,7 @@ class TagDynamicsView(APIView):
             result = paginator.paginate_queryset(dynamics, request)
             
             # 序列化数据
-            serializer = DynamicListSerializer(result, many=True)
+            serializer = PublicDynamicListSerializer(result, many=True)
             
             # 返回数据
             return Response({

@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 from .models import Dynamic
 from apps.user.serializers import PublicUserSerializer, UserSerializer
@@ -43,6 +45,55 @@ def _media_urls(obj):
             add_media({'url': url, 'type': obj.type})
 
     return media
+
+
+def _file_preview(obj, limit):
+    return list(obj.files.all().order_by("pk"))[:limit]
+
+
+def _first_media_urls(obj, limit):
+    media = []
+    seen_urls = set()
+
+    def add_media(item):
+        url = item["url"]
+        if url and url not in seen_urls and len(media) < limit:
+            seen_urls.add(url)
+            media.append(item)
+
+    for file in _file_preview(obj, limit):
+        add_media({
+            "id": file.pk,
+            "url": file.file_url,
+            "type": file.file_type,
+            "name": file.name,
+            "size": file.file_size,
+            "poster_url": file.poster_url,
+        })
+
+    for url in obj.media_urls:
+        if len(media) >= limit:
+            break
+        if isinstance(url, str):
+            add_media({"url": url, "type": obj.type})
+
+    return media
+
+
+def _media_count(obj):
+    files = list(obj.files.all().order_by("pk"))
+    file_urls = {file.file_url for file in files}
+    return len(files) + sum(1 for url in obj.media_urls if url not in file_urls)
+
+
+def _content_excerpt(content):
+    text = content or ""
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"[#>*_`~]", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:220]
 
 
 class ImageSerializer(serializers.Serializer):
@@ -289,3 +340,48 @@ class DynamicListSerializer(serializers.ModelSerializer):
         
     def get_mediaUrls(self, obj):
         return _media_urls(obj)
+
+
+class PublicDynamicListSerializer(serializers.ModelSerializer):
+    created_at = serializers.DateTimeField(read_only=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    views = serializers.IntegerField(source="view_count", read_only=True)
+    likes = serializers.IntegerField(source="like_count", read_only=True)
+    comments = serializers.SerializerMethodField()
+    category = CategorySerializer(read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    content = serializers.SerializerMethodField()
+    summary = serializers.SerializerMethodField()
+    files = serializers.SerializerMethodField()
+    mediaUrls = serializers.SerializerMethodField()
+    mediaCount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Dynamic
+        fields = [
+            "id", "title", "content", "type", "created_at",
+            "createdAt", "summary", "views", "likes", "comments", "category", "tags",
+            "files", "mediaUrls", "mediaCount",
+        ]
+
+    def get_content(self, obj):
+        return _content_excerpt(obj.content)
+
+    def get_summary(self, obj):
+        return _content_excerpt(obj.content)[:120]
+
+    def get_files(self, obj):
+        return MediaFileSerializer(_file_preview(obj, 3), many=True).data
+
+    def get_mediaUrls(self, obj):
+        return _first_media_urls(obj, 3)
+
+    def get_mediaCount(self, obj):
+        return _media_count(obj)
+
+    def get_comments(self, obj):
+        return getattr(
+            obj,
+            "comments_count",
+            obj.comments.count() if hasattr(obj, "comments") else 0,
+        )
