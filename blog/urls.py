@@ -29,7 +29,10 @@ from apps.dynamic.views import (
 from apps.category.views import CategoryViewSet, BlogCategoriesView
 from apps.tag.views import TagViewSet
 from apps.comment.views import CommentViewSet, BlogCommentView
-from apps.upload.views import FileUploadView, AvatarUploadView
+from apps.upload.views import (
+    FileUploadView, AvatarUploadView,
+    PublicFileDownloadView, PublicFilePosterDownloadView,
+)
 from apps.dashboard.views import StatsView
 from apps.access_log.views import AccessLogViewSet
 
@@ -74,6 +77,10 @@ urlpatterns = [
     
     # 文件上传API
     path('api/upload/', include('apps.upload.urls')),
+
+    # 公开文件下载（使用脱敏 token，路径中不暴露 upload）
+    path('api/files/public/<str:token>/', PublicFileDownloadView.as_view(), name='public-file-download'),
+    path('api/files/poster/<str:token>/', PublicFilePosterDownloadView.as_view(), name='public-file-poster'),
     
     # 仪表盘统计API
     path('api/stats/', StatsView.as_view(), name='stats'),

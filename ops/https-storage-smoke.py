@@ -125,7 +125,7 @@ def main() -> int:
                 raise RuntimeError(f"authenticated bytes mismatch: {filename}")
 
             public = session.get(
-                f"{base_url}/api/upload/public/{record_id}/",
+                f"{base_url}/api/files/public/{item.get('public_token')}/",
                 timeout=args.timeout,
             )
             require_response(public, 200, f"public download {filename}")

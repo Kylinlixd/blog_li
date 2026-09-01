@@ -109,7 +109,7 @@ class DynamicAPITests(APITestCase):
             content='视频正文',
             type='video',
             status='published',
-            media_urls=['/api/upload/public/48/'],
+            media_urls=['/api/files/public/48/'],
         )
 
         response = self.client.get(f'/api/blog/dynamics/{video.pk}/')
@@ -118,18 +118,18 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.data['data']['type'], 'video')
         self.assertEqual(response.data['data']['status'], 'published')
         self.assertEqual(response.data['data']['mediaUrls'], [{
-            'url': '/api/upload/public/48/',
+            'url': '/api/files/public/48/',
             'type': 'video',
         }])
 
     def test_detail_serializes_all_attached_media_as_objects(self):
         image = UploadFile.objects.create(
             name='cover.png', file_type='image', file_size=3,
-            file_url='/api/upload/public/1/', uploader=self.user, is_public=True,
+            file_url='/api/files/public/1/', uploader=self.user, is_public=True,
         )
         audio = UploadFile.objects.create(
             name='note.mp3', file_type='audio', file_size=5,
-            file_url='/api/upload/public/2/', uploader=self.user, is_public=True,
+            file_url='/api/files/public/2/', uploader=self.user, is_public=True,
         )
         self.published.files.add(image, audio)
         self.published.media_urls = ['/media/legacy.mp3']
@@ -149,11 +149,11 @@ class DynamicAPITests(APITestCase):
     def test_detail_orders_attached_media_by_file_id(self):
         image = UploadFile.objects.create(
             name='cover.png', file_type='image', file_size=3,
-            file_url='/api/upload/public/1/', uploader=self.user, is_public=True,
+            file_url='/api/files/public/1/', uploader=self.user, is_public=True,
         )
         audio = UploadFile.objects.create(
             name='note.mp3', file_type='audio', file_size=5,
-            file_url='/api/upload/public/2/', uploader=self.user, is_public=True,
+            file_url='/api/files/public/2/', uploader=self.user, is_public=True,
         )
         self.published.files.add(audio, image)
 
@@ -167,7 +167,7 @@ class DynamicAPITests(APITestCase):
     def test_create_derives_type_from_the_first_attached_file(self):
         image = UploadFile.objects.create(
             name='cover.png', file_type='image', file_size=3,
-            file_url='/api/upload/public/1/', uploader=self.user, is_public=True,
+            file_url='/api/files/public/1/', uploader=self.user, is_public=True,
         )
         self.client.force_authenticate(self.user)
 
@@ -242,7 +242,7 @@ class DynamicAPITests(APITestCase):
             name='cover.png',
             file_type='image',
             file_size=123,
-            file_url='/api/upload/public/1/',
+            file_url='/api/files/public/1/',
             uploader=self.user,
             is_public=True,
         )
@@ -299,7 +299,7 @@ class DynamicAPITests(APITestCase):
     def test_update_with_only_file_ids_derives_type(self):
         image = UploadFile.objects.create(
             name='cover.png', file_type='image', file_size=3,
-            file_url='/api/upload/public/1/', uploader=self.user, is_public=True,
+            file_url='/api/files/public/1/', uploader=self.user, is_public=True,
         )
         self.client.force_authenticate(self.user)
 

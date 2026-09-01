@@ -485,14 +485,14 @@ def _poster_response(file_obj):
 
 def _stable_file_url(file_obj):
     if file_obj.is_public:
-        return f'/api/upload/public/{file_obj.public_token}/'
+        return f'/api/files/public/{file_obj.public_token}/'
     return f'/api/upload/files/{file_obj.id}/download/'
 
 
 def _stable_poster_url(file_obj):
     """封面复用文件权限，单独走图片响应以保持视频主文件记录完整。"""
     if file_obj.is_public:
-        return f'/api/upload/poster/{file_obj.public_token}/'
+        return f'/api/files/poster/{file_obj.public_token}/'
     return f'/api/upload/files/{file_obj.id}/poster/'
 
 

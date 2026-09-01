@@ -178,7 +178,7 @@ def verify_records(args: argparse.Namespace, state: dict):
         if response_bytes(download) != original:
             raise RuntimeError(f"authenticated bytes mismatch: {item['filename']}")
 
-        public_download = public.get(f"/api/upload/public/{record.id}/", secure=True)
+        public_download = public.get(f"/api/files/public/{record.public_token}/", secure=True)
         require_status(public_download, 200, f"public download {item['filename']}")
         if response_bytes(public_download) != original:
             raise RuntimeError(f"public bytes mismatch: {item['filename']}")
