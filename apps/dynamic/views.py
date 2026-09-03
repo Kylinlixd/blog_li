@@ -1,3 +1,8 @@
+import os
+import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from apps.dynamic.models import Dynamic
 from rest_framework.permissions import AllowAny
 from apps.user.permissions import IsContentEditor
@@ -22,7 +27,7 @@ from apps.category.models import Category
 from apps.tag.models import Tag
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from django.conf import settings
-import os
+from django.utils import timezone
 from apps.category.serializers import CategorySerializer
 from apps.user.serializers import PublicUserSerializer
 from django.db.models import Case, When, Value, FloatField
@@ -32,6 +37,23 @@ import logging
 
 
 logger = logging.getLogger(__name__)
+
+_BLOG_TZ = ZoneInfo('Asia/Shanghai')
+
+
+def _month_bounds(month):
+    match = re.fullmatch(r'(\d{4})-(\d{2})', month or '')
+    if not match:
+        return None
+    year, month_number = int(match.group(1)), int(match.group(2))
+    if not 1 <= month_number <= 12:
+        return None
+    start = datetime(year, month_number, 1, tzinfo=_BLOG_TZ)
+    if month_number == 12:
+        end = datetime(year + 1, 1, 1, tzinfo=_BLOG_TZ)
+    else:
+        end = datetime(year, month_number + 1, 1, tzinfo=_BLOG_TZ)
+    return start, end
 
 
 def parse_limit(request, default=5):
@@ -68,7 +90,9 @@ class DynamicViewSet(ModelViewSet):
     
     def get_permissions(self):
         is_public_blog = is_public_blog_request(self.request)
-        if is_public_blog and self.action in ['list', 'retrieve', 'adjacent', 'like', 'view']:
+        if is_public_blog and self.action in [
+            'list', 'timeline', 'retrieve', 'adjacent', 'like', 'view'
+        ]:
             return [AllowAny()]
         return super().get_permissions()
     
@@ -85,6 +109,12 @@ class DynamicViewSet(ModelViewSet):
                     Q(title__icontains=keyword) | 
                     Q(content__icontains=keyword)
                 )
+            month = self.request.query_params.get('month', '')
+            if month:
+                bounds = _month_bounds(month)
+                if not bounds:
+                    raise ValidationError({'month': 'month 参数格式应为 YYYY-MM'})
+                queryset = queryset.filter(created_at__range=bounds)
         # 后台请求
         else:
             # 标题搜索
@@ -179,6 +209,12 @@ class DynamicViewSet(ModelViewSet):
                 'message': 'success',
                 'data': serializer.data
             })
+        except ValidationError as exc:
+            return Response({
+                'code': 400,
+                'message': '查询参数有误',
+                'data': exc.detail
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.exception('Admin dynamic list failed')
             return Response({
@@ -186,6 +222,35 @@ class DynamicViewSet(ModelViewSet):
                 'message': '获取动态列表失败，请稍后重试',
                 'data': None
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='timeline')
+    def timeline(self, request):
+        counts = {}
+        published_at = (
+            Dynamic.objects.filter(status='published')
+            .order_by('-created_at')
+            .values_list('created_at', flat=True)
+        )
+        for value in published_at:
+            local = timezone.localtime(value)
+            key = (local.year, local.month)
+            counts[key] = counts.get(key, 0) + 1
+
+        items = [
+            {
+                'key': f'{year}-{month:02d}',
+                'year': year,
+                'month': month,
+                'monthLabel': f'{month}月',
+                'count': counts[(year, month)],
+            }
+            for year, month in sorted(counts, reverse=True)
+        ]
+        return Response({
+            'code': 200,
+            'message': '获取时间线成功',
+            'data': items,
+        })
     
     def retrieve(self, request, *args, **kwargs):
         try:

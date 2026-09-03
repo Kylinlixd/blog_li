@@ -47,6 +47,7 @@ router.register(r'access-logs', AccessLogViewSet, basename='access-log')
 
 public_blog_api_patterns = [
     path('dynamics/', DynamicViewSet.as_view({'get': 'list'}), name='api-blog-dynamics'),
+    path('dynamics/timeline/', DynamicViewSet.as_view({'get': 'timeline'}), name='api-blog-dynamic-timeline'),
     path('dynamics/hot/', HotDynamicsView.as_view({'get': 'list'}), name='api-hot-dynamics'),
     path('dynamics/recent/', RecentDynamicsView.as_view({'get': 'list'}), name='api-recent-dynamics'),
     path('dynamics/<int:pk>/', DynamicViewSet.as_view({'get': 'retrieve'}), name='api-blog-dynamic-detail'),

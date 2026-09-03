@@ -3,6 +3,7 @@ from unittest.mock import patch
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.core.cache import cache
+from django.utils import timezone
 
 from apps.category.models import Category
 from apps.dynamic.models import Dynamic
@@ -75,6 +76,36 @@ class DynamicAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['total'], 1)
+
+    def test_public_list_filters_by_year_month(self):
+        month = timezone.localtime().strftime('%Y-%m')
+
+        response = self.client.get('/api/blog/dynamics/', {'month': month})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['total'], 1)
+        self.assertEqual(response.data['data']['items'][0]['title'], self.published.title)
+
+    def test_public_list_rejects_invalid_month(self):
+        response = self.client.get('/api/blog/dynamics/', {'month': '2026-13'})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_timeline_endpoint_returns_backend_month_counts(self):
+        response = self.client.get('/api/blog/dynamics/timeline/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['code'], 200)
+        self.assertGreaterEqual(len(response.data['data']), 1)
+        self.assertEqual(
+            sum(item['count'] for item in response.data['data']),
+            1,
+        )
+        item = response.data['data'][0]
+        self.assertEqual(
+            sorted(item.keys()),
+            ['count', 'key', 'month', 'monthLabel', 'year'],
+        )
 
     def test_detail_includes_category_and_tags(self):
         response = self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
