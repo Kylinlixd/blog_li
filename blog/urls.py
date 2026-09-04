@@ -34,7 +34,7 @@ from apps.upload.views import (
     PublicFileDownloadView, PublicFilePosterDownloadView,
 )
 from apps.dashboard.views import StatsView
-from apps.access_log.views import AccessLogViewSet
+from apps.access_log.views import AccessLogViewSet, IpSecurityRuleViewSet
 
 # 创建路由器
 router = DefaultRouter()
@@ -44,6 +44,7 @@ router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'comments', CommentViewSet, basename='comment')
 router.register(r'access-logs', AccessLogViewSet, basename='access-log')
+router.register(r'access-log-rules', IpSecurityRuleViewSet, basename='access-log-rule')
 
 public_blog_api_patterns = [
     path('dynamics/', DynamicViewSet.as_view({'get': 'list'}), name='api-blog-dynamics'),

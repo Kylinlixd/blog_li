@@ -14,6 +14,46 @@ from django.db import close_old_connections
 from blog.request_utils import get_client_ip
 
 
+class IpSecurityMiddleware(MiddlewareMixin):
+    """Enforce manual whitelist, ban/blacklist and rate-limit rules for API calls."""
+
+    def process_request(self, request):
+        if request.method == 'OPTIONS' or not request.path.startswith('/api/'):
+            return None
+
+        ip_address = get_client_ip(request)
+        if not ip_address:
+            return None
+
+        from apps.access_log.models import IpSecurityRule
+        from apps.access_log.rules import increment_rate_bucket, precedence_for_ip
+
+        rule = precedence_for_ip(ip_address)
+        if rule is None:
+            return None
+
+        if rule.rule_type == 'whitelist':
+            request.access_security_rule = rule
+            return None
+        if rule.rule_type in {'ban', 'blacklist'}:
+            return JsonResponse({
+                'code': 403,
+                'message': '该 IP 已被限制访问',
+                'data': {'rule_type': rule.rule_type},
+            }, status=403)
+        if rule.rule_type == 'rate_limit':
+            count = increment_rate_bucket(rule, ip_address)
+            if count > (rule.requests or 0):
+                response = JsonResponse({
+                    'code': 429,
+                    'message': '请求过于频繁，请稍后重试',
+                    'data': {'retry_after': rule.window_seconds},
+                }, status=429)
+                response['Retry-After'] = str(rule.window_seconds or 60)
+                return response
+        return None
+
+
 class AccessLogMiddleware(MiddlewareMixin):
     """Persist API access metadata without logging static files or the log endpoint itself."""
     def process_response(self, request, response):
