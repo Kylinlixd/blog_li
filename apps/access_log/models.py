@@ -108,3 +108,11 @@ class IpRateBucket(models.Model):
                 name="unique_ip_rate_window",
             )
         ]
+
+
+class IpGeoCache(models.Model):
+    ip_address = models.GenericIPAddressField(unique=True)
+    data = models.JSONField(default=dict)
+    lookup_ok = models.BooleanField(default=False)
+    expires_at = models.DateTimeField()
+    updated_at = models.DateTimeField(auto_now=True)

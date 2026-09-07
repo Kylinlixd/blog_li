@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh blog IP ownership cache
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=blog
+WorkingDirectory=/opt/blog_li
+ExecStart=/opt/blog_li/.venv/bin/python manage.py refresh_ip_geo
+TimeoutStartSec=1800

@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh new blog IP ownership every ten minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -80,7 +80,7 @@ class AccessLogProfileTests(APITestCase):
                 created_at=now,
             )
 
-        profile = build_ip_profile('198.51.100.8', now=now)
+        profile = build_ip_profile('198.51.100.8', now=timezone.now())
 
         self.assertEqual(profile['behavior']['total_requests'], 8)
         self.assertEqual(profile['risk_level'], 'high')

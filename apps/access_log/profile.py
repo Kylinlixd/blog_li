@@ -2,11 +2,13 @@
 
 import ipaddress
 from datetime import timedelta
+from collections import defaultdict
 
 from django.db.models import Count, Max, Min, Q
 from django.utils import timezone
 
-from .models import AccessLog, IpGeoRecord, IpSecurityRule
+from .models import AccessLog, IpSecurityRule, IpGeoCache, IpGeoRecord
+from .geo import lookup_geo
 
 
 SCOPE_LABELS = {
@@ -58,75 +60,20 @@ def classify_ip(value):
         "scope": scope,
         "scope_label": SCOPE_LABELS[scope],
         "ip_type": f"{SCOPE_LABELS[scope]} IPv{ip.version}",
-        "is_public": ip.is_global,
+        "is_public": ip.is_global and not ip.is_multicast,
     }
 
 
-def lookup_geo(value):
-    try:
-        ip = ipaddress.ip_address((value or "").strip())
-    except ValueError:
-        return None
-
-    records = list(IpGeoRecord.objects.values(
-        "network", "country", "region", "city", "isp", "source", "version"
-    ))
-    best = None
-    for record in records:
-        try:
-            network = ipaddress.ip_network(record["network"], strict=False)
-        except ValueError:
-            continue
-        if ip in network and (best is None or network.prefixlen > best.prefixlen):
-            best = network
-            matched = record
-    if best is None:
-        return {
-            "country": "",
-            "region": "",
-            "city": "",
-            "isp": "",
-            "source": "",
-            "matched": False,
-        }
-    return {**matched, "matched": True}
-
-
-def _active_rules(value):
-    try:
-        ip = ipaddress.ip_address((value or "").strip())
-    except ValueError:
-        return []
-    now = timezone.now()
-    priority = {"whitelist": 0, "blacklist": 1, "ban": 2, "rate_limit": 3}
-    rules = []
-    for rule in IpSecurityRule.objects.filter(status="active").select_related("created_by"):
-        if rule.expires_at and rule.expires_at <= now:
-            continue
-        try:
-            target = ipaddress.ip_network(rule.target, strict=False)
-        except ValueError:
-            try:
-                target = ipaddress.ip_network(f"{rule.target}/32" if ":" not in rule.target else f"{rule.target}/128", strict=False)
-            except ValueError:
-                continue
-        if ip in target:
-            rules.append((priority.get(rule.rule_type, 9), rule.created_at, rule))
-    rules.sort(key=lambda item: (item[0], item[1], item[2].id))
-    return [item[2] for item in rules]
-
-
 def _risk(now, logs):
-    recent_minute = logs.filter(created_at__gte=now - timedelta(minutes=1)).count()
-    recent_hour = logs.filter(created_at__gte=now - timedelta(hours=1)).count()
-    auth_failures = logs.filter(
-        path__icontains="/auth/", status_code__in=[400, 401, 403]
-    ).count()
-    client_errors = logs.filter(status_code__gte=400, status_code__lt=500).count()
-    server_errors = logs.filter(status_code__gte=500, status_code__lt=600).count()
-    write_count = logs.filter(method__in=["POST", "PUT", "PATCH", "DELETE"]).count()
-    path_count = logs.values("path").distinct().count()
-    total = logs.count()
+    entries = list(logs.values('created_at', 'path', 'status_code', 'method')) if hasattr(logs, 'values') else logs
+    recent_minute = sum(row['created_at'] >= now - timedelta(minutes=1) for row in entries)
+    recent_hour = sum(row['created_at'] >= now - timedelta(hours=1) for row in entries)
+    auth_failures = sum('/auth/' in row['path'] and row['status_code'] in (400, 401, 403) for row in entries)
+    client_errors = sum(400 <= row['status_code'] < 500 for row in entries)
+    server_errors = sum(500 <= row['status_code'] < 600 for row in entries)
+    write_count = sum(row['method'] in ('POST', 'PUT', 'PATCH', 'DELETE') for row in entries)
+    path_count = len({row['path'] for row in entries})
+    total = len(entries)
 
     reasons = []
     score = 0
@@ -162,10 +109,8 @@ def _risk(now, logs):
         level = "high"
     elif score >= 25:
         level = "medium"
-    elif score >= 10:
-        level = "low"
     else:
-        level = "normal"
+        level = "low"
     return {
         "risk_score": score,
         "risk_level": level,
@@ -180,51 +125,45 @@ def _risk(now, logs):
     }
 
 
-def build_ip_profile(value, now=None):
+def build_ip_profiles(values, now=None, since=None, allow_remote=False):
+    """Five DB reads for any collection size; provider calls are opt-in."""
     now = now or timezone.now()
-    classification = classify_ip(value)
-    if not classification["ip_address"]:
-        return {
+    values = list(values)
+    summaries = {row['ip_address']: row for row in AccessLog.objects.filter(ip_address__in=values).order_by()
+                 .values('ip_address').annotate(total=Count('id'), first_seen=Min('created_at'), last_seen=Max('created_at'), success=Count('id', filter=Q(status_code__lt=400)))}
+    recent = defaultdict(list)
+    for row in AccessLog.objects.filter(ip_address__in=values, created_at__gte=since or now-timedelta(days=7), created_at__lte=now).order_by().values('ip_address', 'created_at', 'path', 'status_code', 'method'):
+        recent[row['ip_address']].append(row)
+    active = []
+    for rule in IpSecurityRule.objects.filter(status='active').filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)):
+        try:
+            active.append((ipaddress.ip_network(rule.target, strict=False), rule))
+        except ValueError:
+            continue
+    caches = {row.ip_address: row for row in IpGeoCache.objects.filter(ip_address__in=values)}
+    records = list(IpGeoRecord.objects.values('network', 'country', 'region', 'city', 'isp', 'source', 'version'))
+    profiles = []
+    for value in values:
+        classification = classify_ip(value)
+        ip_value = classification['ip_address']
+        if not ip_value:
+            profiles.append({**classification, 'geo': None, 'behavior': None, 'risk_score': 0, 'risk_level': 'unknown', 'risk_reasons': ['IP 无法解析'], 'rules': []})
+            continue
+        ip = ipaddress.ip_address(ip_value)
+        summary = summaries.get(ip_value, {})
+        risk = _risk(now, recent[ip_value])
+        rules = [rule for network, rule in active if ip in network]
+        if any(rule.rule_type == 'whitelist' for rule in rules):
+            risk.update(risk_score=0, risk_level='low', risk_reasons=['可信白名单，已豁免风险评级'])
+        profiles.append({
             **classification,
-            "geo": None,
-            "behavior": None,
-            "risk_score": 0,
-            "risk_level": "unknown",
-            "risk_reasons": ["IP 无法解析"],
-            "rules": [],
-        }
+            'geo': lookup_geo(ip_value, allow_remote=allow_remote, cache_rows=caches, records=records),
+            'behavior': {'total_requests': summary.get('total', 0), 'first_seen': summary.get('first_seen'), 'last_seen': summary.get('last_seen'), 'success_count': summary.get('success', 0), 'risk': risk},
+            'risk_score': risk['risk_score'], 'risk_level': risk['risk_level'], 'risk_reasons': risk['risk_reasons'],
+            'rules': [{key: getattr(rule, key) for key in ('id', 'rule_type', 'attack_level', 'requests', 'window_seconds', 'expires_at', 'is_permanent', 'reason', 'status')} for rule in rules],
+        })
+    return profiles
 
-    logs = AccessLog.objects.filter(ip_address=classification["ip_address"])
-    summary = logs.aggregate(total=Count("id"), first_seen=Min("created_at"), last_seen=Max("created_at"))
-    risk = _risk(now, logs)
-    geo = lookup_geo(classification["ip_address"])
-    rules = _active_rules(classification["ip_address"])
-    rule_summary = [
-        {
-            "id": rule.id,
-            "rule_type": rule.rule_type,
-            "attack_level": rule.attack_level,
-            "requests": rule.requests,
-            "window_seconds": rule.window_seconds,
-            "expires_at": rule.expires_at,
-            "is_permanent": rule.is_permanent,
-            "reason": rule.reason,
-            "status": rule.status,
-        }
-        for rule in rules
-    ]
-    return {
-        **classification,
-        "geo": geo,
-        "behavior": {
-            "total_requests": summary["total"] or 0,
-            "first_seen": summary["first_seen"],
-            "last_seen": summary["last_seen"],
-            "success_count": logs.filter(status_code__lt=400).count(),
-            "risk": risk,
-        },
-        "risk_score": risk["risk_score"],
-        "risk_level": risk["risk_level"],
-        "risk_reasons": risk["risk_reasons"],
-        "rules": rule_summary,
-    }
+
+def build_ip_profile(value, now=None, allow_remote=True, since=None):
+    return build_ip_profiles([value], now=now, since=since, allow_remote=allow_remote)[0]

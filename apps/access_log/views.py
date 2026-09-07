@@ -1,3 +1,5 @@
+import ipaddress
+from rest_framework.exceptions import ValidationError
 from apps.user.permissions import IsContentEditor
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.response import Response
@@ -6,7 +8,8 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Count, Max
 from .models import AccessLog, IpSecurityRule
-from .profile import build_ip_profile
+from .profile import build_ip_profile, build_ip_profiles
+from .geo import lookup_geo
 from .rules import revoke_rule
 from .serializers import AccessLogSerializer, IpSecurityRuleSerializer
 
@@ -48,20 +51,43 @@ class AccessLogViewSet(ReadOnlyModelViewSet):
             last_seen=Max('created_at'),
         ).filter(ip_address__isnull=False).order_by('-last_seen')
         ip_filter = request.query_params.get('ip', '').strip()
-        if ip_filter:
+        network = None
+        if '/' in ip_filter:
+            try:
+                network = ipaddress.ip_network(ip_filter, strict=False)
+            except ValueError:
+                raise ValidationError({'ip': '请输入有效的 IP 或 CIDR'})
+        elif ip_filter:
             rows = rows.filter(ip_address__icontains=ip_filter)
-
+        risk = request.query_params.get('risk', '')
+        scope = request.query_params.get('network', '')
+        region = request.query_params.get('region', '').strip().casefold()
+        if risk and risk not in {'low', 'medium', 'high', 'critical'}:
+            raise ValidationError({'risk': '无效风险等级'})
+        if scope and scope not in {'private', 'public'}:
+            raise ValidationError({'network': '请选择内网或公网'})
+        profiles = []
+        addresses = [row['ip_address'] for row in rows if not network or ipaddress.ip_address(row['ip_address']) in network]
+        for profile in build_ip_profiles(addresses):
+            if scope and profile['is_public'] != (scope == 'public'):
+                continue
+            if region and region not in ' '.join(str(profile['geo'].get(key, '')) for key in ('country', 'region', 'city', 'location')).casefold():
+                continue
+            profiles.append(profile)
+        summary = {'high_risk': sum(p['risk_level'] in ('high', 'critical') for p in profiles)}
+        if risk:
+            profiles = [profile for profile in profiles if profile['risk_level'] == risk]
         paginator = self.pagination_class()
-        page = paginator.paginate_queryset(rows, request, view=self)
-        profiles = [
-            build_ip_profile(row['ip_address'])
-            for row in page
-        ]
+        page = paginator.paginate_queryset(profiles, request, view=self)
+        # Only resolve the visible page online; region filters use the persisted geo cache.
+        # Cached ownership is already available; missing/new public IPs resolve in the detail view
+        # and in the scheduled refresh command, never blocking the whole list on a provider outage.
         return Response({
             'code': 200,
             'message': 'success',
             'data': {
-                'list': profiles,
+                'list': page,
+                'summary': summary,
                 'total': paginator.page.paginator.count,
                 'page': paginator.page.number,
                 'pageSize': paginator.page_size,
