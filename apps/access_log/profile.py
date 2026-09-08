@@ -23,6 +23,24 @@ SCOPE_LABELS = {
 }
 
 
+def _anomaly_level(failed_requests, total_requests):
+    """Return the request failure anomaly level for one reporting window."""
+    if not total_requests:
+        return "normal"
+    failure_rate = failed_requests / total_requests
+    if failed_requests >= 100 and failure_rate >= 0.8:
+        return "critical"
+    if failed_requests >= 30 and failure_rate >= 0.5:
+        return "high"
+    if failed_requests >= 10 and failure_rate >= 0.3:
+        return "medium"
+    return "normal"
+
+
+def _format_failure_reason(prefix, failed_requests, total_requests, error_rate):
+    return f"{prefix}（失败 {failed_requests}/{total_requests}，{error_rate:.1f}%）"
+
+
 def classify_ip(value):
     value = (value or "").strip()
     try:
@@ -74,9 +92,15 @@ def _risk(now, logs):
     write_count = sum(row['method'] in ('POST', 'PUT', 'PATCH', 'DELETE') for row in entries)
     path_count = len({row['path'] for row in entries})
     total = len(entries)
+    failed_requests = client_errors + server_errors
+    raw_error_rate = failed_requests / total if total else 0
+    error_rate = round(raw_error_rate * 100, 1)
+    anomaly_level = _anomaly_level(failed_requests, total)
 
     reasons = []
+    anomaly_reasons = []
     score = 0
+    client_error_floor = 0
     if auth_failures >= 5:
         score += 56
         reasons.append("认证失败集中")
@@ -92,15 +116,31 @@ def _risk(now, logs):
     if recent_hour and recent_hour >= 300:
         score += 14
         reasons.append("小时窗口请求量大")
-    if total and (client_errors + server_errors) / max(total, 1) >= 0.3:
-        score += 12
-        reasons.append("错误响应占比高")
+    client_error_level = _anomaly_level(client_errors, total)
+    if client_error_level == "medium":
+        client_error_floor = 25
+        reasons.append(_format_failure_reason("客户端错误偏多", client_errors, total, client_errors / total * 100 if total else 0))
+    elif client_error_level in ("high", "critical"):
+        client_error_floor = 50
+        reasons.append(_format_failure_reason("客户端错误集中", client_errors, total, client_errors / total * 100 if total else 0))
     if total and write_count / max(total, 1) >= 0.6 and total >= 10:
         score += 10
         reasons.append("写操作集中")
     if path_count >= 30:
         score += 10
         reasons.append("访问路径扩散")
+
+    if anomaly_level != "normal":
+        anomaly_prefix = "请求失败集中" if anomaly_level in ("high", "critical") else "请求失败偏多"
+        anomaly_reasons.append(_format_failure_reason(anomaly_prefix, failed_requests, total, error_rate))
+        if client_errors:
+            if client_error_level != "normal":
+                client_prefix = "客户端错误集中" if client_error_level in ("high", "critical") else "客户端错误偏多"
+                anomaly_reasons.append(_format_failure_reason(client_prefix, client_errors, total, client_errors / total * 100))
+        if server_errors and server_errors >= 10 and server_errors / total >= 0.3:
+            anomaly_reasons.append(_format_failure_reason("服务端错误偏多，建议排查服务", server_errors, total, server_errors / total * 100))
+
+    score = max(score, client_error_floor)
 
     score = max(0, min(100, score))
     if score >= 75:
@@ -114,7 +154,7 @@ def _risk(now, logs):
     return {
         "risk_score": score,
         "risk_level": level,
-        "risk_reasons": reasons or ["未发现明显异常"],
+        "risk_reasons": reasons or ["未发现明显IP安全风险"],
         "recent_1m": recent_minute,
         "recent_1h": recent_hour,
         "auth_failures": auth_failures,
@@ -122,6 +162,11 @@ def _risk(now, logs):
         "server_errors": server_errors,
         "write_count": write_count,
         "unique_paths": path_count,
+        "total_requests": total,
+        "failed_requests": failed_requests,
+        "error_rate": error_rate,
+        "anomaly_level": anomaly_level,
+        "anomaly_reasons": anomaly_reasons,
     }
 
 

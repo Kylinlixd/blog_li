@@ -86,6 +86,127 @@ class AccessLogProfileTests(APITestCase):
         self.assertEqual(profile['risk_level'], 'high')
         self.assertIn('认证失败集中', profile['risk_reasons'])
 
+    def _create_spread_logs(self, ip, total, failed, now, failed_status=500):
+        rows = []
+        for index in range(total):
+            rows.append(AccessLog(
+                ip_address=ip,
+                method='GET',
+                path='/api/health/',
+                status_code=failed_status if index < failed else 200,
+                created_at=now - timedelta(minutes=index * 3),
+            ))
+        AccessLog.objects.bulk_create(rows)
+        for index, row in enumerate(rows):
+            row.created_at = now - timedelta(minutes=index * 3)
+        AccessLog.objects.bulk_update(rows, ['created_at'])
+
+    def test_behavior_anomaly_uses_window_failure_count_and_rate(self):
+        now = timezone.now()
+        self._create_spread_logs('198.51.100.20', 68, 66, now, failed_status=400)
+        profile = build_ip_profile('198.51.100.20', now=now)
+
+        risk = profile['behavior']['risk']
+        self.assertEqual((risk['total_requests'], risk['failed_requests']), (68, 66))
+        self.assertEqual(risk['error_rate'], 97.1)
+        self.assertEqual(risk['anomaly_level'], 'high')
+        self.assertEqual(profile['risk_level'], 'high')
+        self.assertGreaterEqual(profile['risk_score'], 50)
+
+    def test_server_errors_mark_anomaly_without_ip_security_score(self):
+        now = timezone.now()
+        self._create_spread_logs('198.51.100.21', 68, 66, now)
+        profile = build_ip_profile('198.51.100.21', now=now)
+
+        risk = profile['behavior']['risk']
+        self.assertEqual(risk['client_errors'], 0)
+        self.assertEqual(risk['server_errors'], 66)
+        self.assertEqual(risk['anomaly_level'], 'high')
+        self.assertEqual(profile['risk_level'], 'low')
+        self.assertEqual(profile['risk_score'], 0)
+        self.assertTrue(any('服务端错误偏多，建议排查服务' in reason for reason in risk['anomaly_reasons']))
+        self.assertIn('未发现明显IP安全风险', profile['risk_reasons'])
+
+    def test_mixed_failures_report_each_error_class_with_its_own_rate(self):
+        now = timezone.now()
+        self._create_spread_logs('198.51.100.32', 68, 65, now, failed_status=500)
+        first = AccessLog.objects.filter(ip_address='198.51.100.32').order_by('id').first()
+        first.status_code = 400
+        first.save(update_fields=['status_code'])
+
+        risk = build_ip_profile('198.51.100.32', now=now)['behavior']['risk']
+        self.assertEqual((risk['client_errors'], risk['server_errors']), (1, 64))
+        self.assertEqual(risk['anomaly_level'], 'high')
+        self.assertFalse(any('客户端错误偏多' in reason or '客户端错误集中' in reason for reason in risk['anomaly_reasons']))
+        self.assertTrue(any('服务端错误偏多，建议排查服务（失败 64/68' in reason for reason in risk['anomaly_reasons']))
+
+    def test_client_error_floor_applies_after_other_security_signals(self):
+        now = timezone.now()
+        AccessLog.objects.bulk_create([
+            AccessLog(
+                ip_address='198.51.100.33',
+                method='GET',
+                path=f'/api/paths/{index}/',
+                status_code=400 if index < 10 else 200,
+                created_at=now,
+            )
+            for index in range(30)
+        ])
+        AccessLog.objects.filter(ip_address='198.51.100.33').update(created_at=now - timedelta(hours=2))
+
+        profile = build_ip_profile('198.51.100.33', now=now)
+        self.assertEqual(profile['behavior']['risk']['anomaly_level'], 'medium')
+        self.assertEqual(profile['risk_score'], 25)
+
+    def test_behavior_anomaly_thresholds_require_count_and_ratio(self):
+        now = timezone.now()
+        cases = {
+            '198.51.100.22': (9, 10, 'normal'),
+            '198.51.100.23': (10, 34, 'normal'),
+            '198.51.100.24': (10, 33, 'medium'),
+            '198.51.100.25': (29, 59, 'medium'),
+            '198.51.100.26': (30, 60, 'high'),
+            '198.51.100.27': (99, 123, 'high'),
+            '198.51.100.28': (100, 125, 'critical'),
+        }
+        for ip, (failed, total, expected) in cases.items():
+            self._create_spread_logs(ip, total, failed, now)
+
+        for ip, (_, _, expected) in cases.items():
+            self.assertEqual(build_ip_profile(ip, now=now)['behavior']['risk']['anomaly_level'], expected)
+
+    def test_behavior_window_is_distinct_from_historical_total_and_empty_window(self):
+        now = timezone.now()
+        self._create_spread_logs('198.51.100.29', 100, 100, now - timedelta(days=8))
+        AccessLog.objects.filter(ip_address='198.51.100.29').update(created_at=now - timedelta(days=8))
+        self._create_spread_logs('198.51.100.29', 3, 1, now)
+        profile = build_ip_profile('198.51.100.29', now=now)
+        risk = profile['behavior']['risk']
+        self.assertEqual(profile['behavior']['total_requests'], 103)
+        self.assertEqual((risk['total_requests'], risk['failed_requests']), (3, 1))
+        self.assertEqual(risk['anomaly_level'], 'normal')
+
+        empty = build_ip_profile('198.51.100.30', now=now)
+        self.assertEqual(empty['behavior']['risk']['total_requests'], 0)
+        self.assertEqual(empty['behavior']['risk']['error_rate'], 0)
+        self.assertEqual(empty['behavior']['risk']['anomaly_level'], 'normal')
+
+    def test_whitelist_keeps_anomaly_details_but_overrides_security_risk(self):
+        now = timezone.now()
+        self._create_spread_logs('198.51.100.31', 68, 66, now, failed_status=400)
+        rule = IpSecurityRule.objects.create(target='198.51.100.31', rule_type='whitelist')
+
+        whitelisted = build_ip_profile('198.51.100.31', now=now)
+        self.assertEqual(whitelisted['risk_level'], 'low')
+        self.assertEqual(whitelisted['risk_score'], 0)
+        self.assertEqual(whitelisted['behavior']['risk']['anomaly_level'], 'high')
+
+        rule.status = 'revoked'
+        rule.save(update_fields=['status'])
+        restored = build_ip_profile('198.51.100.31', now=now)
+        self.assertEqual(restored['risk_level'], 'high')
+        self.assertGreaterEqual(restored['risk_score'], 50)
+
 
 class AccessLogSecurityApiTests(APITestCase):
     def setUp(self):
