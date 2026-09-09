@@ -9,6 +9,7 @@ from django.urls import Resolver404, resolve
 
 from blog.env import env_bool, env_list
 from blog.middleware import RequestIdMiddleware
+from blog.request_utils import get_client_ip
 
 
 class EnvironmentParsingTests(SimpleTestCase):
@@ -77,3 +78,26 @@ class RequestIdMiddlewareTests(SimpleTestCase):
         response = self.middleware.process_request(duplicate)
 
         self.assertEqual(response.status_code, 409)
+
+
+class ClientIpTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_untrusted_forwarded_header_cannot_spoof_client_ip(self):
+        request = self.factory.get(
+            '/api/stats/',
+            REMOTE_ADDR='198.51.100.10',
+            HTTP_X_FORWARDED_FOR='203.0.113.99',
+        )
+
+        self.assertEqual(get_client_ip(request), '198.51.100.10')
+
+    def test_trusted_local_proxy_forwarded_header_is_used(self):
+        request = self.factory.get(
+            '/api/stats/',
+            REMOTE_ADDR='127.0.0.1',
+            HTTP_X_FORWARDED_FOR='203.0.113.99, 127.0.0.1',
+        )
+
+        self.assertEqual(get_client_ip(request), '203.0.113.99')

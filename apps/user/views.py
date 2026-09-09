@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -45,6 +46,12 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action in {'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy'}:
             return [IsUserAdmin()]
         return super().get_permissions()
+
+    def get_throttles(self):
+        if self.action == 'login':
+            self.throttle_scope = 'login'
+            return [ScopedRateThrottle()]
+        return []
 
     @staticmethod
     def _set_refresh_cookie(response, refresh_token):

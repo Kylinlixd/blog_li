@@ -1,10 +1,12 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 
 class AuthTests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user = get_user_model().objects.create_user(
             username='editor',
             email='editor@example.com',
@@ -127,3 +129,18 @@ class AuthTests(APITestCase):
         response = self.client.get('/api/users/')
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_login_is_rate_limited_after_repeated_failures(self):
+        for _ in range(10):
+            response = self.client.post('/api/auth/login/', {
+                'username': self.user.username,
+                'password': 'wrong-password',
+            })
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post('/api/auth/login/', {
+            'username': self.user.username,
+            'password': 'wrong-password',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)

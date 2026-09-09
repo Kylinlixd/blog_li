@@ -30,11 +30,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-DEBUG = env_bool('DJANGO_DEBUG', True)
+# Fail closed: production must opt into debug explicitly for local development.
+DEBUG = env_bool('DJANGO_DEBUG', False)
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
-    if not DEBUG:
+    if not DEBUG and 'test' not in sys.argv:
         raise ImproperlyConfigured('DJANGO_SECRET_KEY is required when DJANGO_DEBUG=False')
     SECRET_KEY = 'django-insecure-development-only-change-me'
 
@@ -49,6 +50,7 @@ SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_SECURE_HSTS_SECONDS', '31536000' if 
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', not DEBUG)
 SECURE_HSTS_PRELOAD = env_bool('DJANGO_SECURE_HSTS_PRELOAD', False)
 CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS')
+TRUSTED_PROXY_IPS = tuple(env_list('DJANGO_TRUSTED_PROXY_IPS', '127.0.0.1,::1'))
 
 
 # Application definition
@@ -232,8 +234,15 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.FormParser',
         'rest_framework.parsers.JSONParser',
     ),
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '10/minute',
+        'public_comment': '10/minute',
+    },
     'EXCEPTION_HANDLER': 'blog.exception_handler.custom_exception_handler',
 }
 

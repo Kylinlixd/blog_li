@@ -7,6 +7,7 @@ from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 from .models import Comment
 from .serializers import (
     CommentSerializer, CommentCreateSerializer,
@@ -37,6 +38,7 @@ class CommentViewSet(ModelViewSet):
     queryset = Comment.objects.select_related('author', 'dynamic')
     permission_classes = [IsContentEditor]
     pagination_class = CommentPagination
+    throttle_scope = 'public_comment'
     
     def get_permissions(self):
         # 如果是前台请求，允许匿名访问列表和创建
@@ -44,6 +46,11 @@ class CommentViewSet(ModelViewSet):
             return [AllowAny()]
         # 如果是后台请求，需要认证
         return super().get_permissions()
+
+    def get_throttles(self):
+        if self.action == 'create' and is_public_blog_request(self.request):
+            return [ScopedRateThrottle()]
+        return []
     
     def dispatch(self, request, *args, **kwargs):
         """重载dispatch方法，对前台请求跳过认证"""
@@ -164,6 +171,10 @@ class CommentViewSet(ModelViewSet):
 
 class BlogCommentView(APIView):
     permission_classes = [AllowAny]
+    throttle_scope = 'public_comment'
+
+    def get_throttles(self):
+        return [ScopedRateThrottle()] if self.request.method == 'POST' else []
     
     def get(self, request):
         """获取评论列表"""

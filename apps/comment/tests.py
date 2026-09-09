@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -8,6 +9,7 @@ from apps.dynamic.models import Dynamic
 
 class PublicCommentVisibilityTests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user = get_user_model().objects.create_user(username='comment-author')
         self.dynamic = Dynamic.objects.create(
             author=self.user,
@@ -130,3 +132,16 @@ class PublicCommentVisibilityTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Comment.objects.filter(content='不应写入').exists())
+
+    def test_public_comment_submission_is_rate_limited(self):
+        payload = {
+            'dynamic_id': self.dynamic.pk,
+            'content': '限流测试评论',
+        }
+        for _ in range(10):
+            response = self.client.post('/api/blog/comments/', payload, format='json')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.post('/api/blog/comments/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
