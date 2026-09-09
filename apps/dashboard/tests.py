@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
+from django.utils import timezone
 
 
 class DashboardStatsTests(APITestCase):
@@ -44,6 +45,46 @@ class DashboardStatsTests(APITestCase):
         self.assertEqual(data['categories'][0]['views'], 1320)
         self.assertEqual(data['hot_articles'][0]['id'], article.pk)
         self.assertEqual(sum(row['pv'] for row in data['daily']), 2)
+
+    def test_daily_publishing_uses_local_calendar_day(self):
+        from datetime import datetime, timezone as dt_timezone
+        from apps.dynamic.models import Dynamic
+
+        article = Dynamic.objects.create(
+            author=self.user,
+            title='北京时间发布',
+            content='内容',
+            status='published',
+        )
+        # 16:30 UTC is 00:30 on the next day in Asia/Shanghai.
+        Dynamic.objects.filter(pk=article.pk).update(
+            created_at=datetime(2026, 9, 8, 16, 30, tzinfo=dt_timezone.utc),
+        )
+        self.client.force_authenticate(self.user)
+
+        with timezone.override('Asia/Shanghai'):
+            response = self.client.get('/api/stats/')
+
+        daily = response.data['data']['daily']
+        self.assertEqual(sum(row['count'] for row in daily), 1)
+        self.assertEqual(
+            next(row['count'] for row in daily if row['day'] == '2026-09-09'),
+            1,
+        )
+
+    def test_local_day_counter_converts_utc_values_in_application(self):
+        from datetime import datetime, timezone as dt_timezone
+        from apps.dashboard.views import count_local_days
+
+        values = [
+            datetime(2026, 9, 8, 16, 30, tzinfo=dt_timezone.utc),
+            datetime(2026, 9, 8, 15, 59, tzinfo=dt_timezone.utc),
+        ]
+
+        self.assertEqual(
+            count_local_days(values, 'Asia/Shanghai'),
+            {'2026-09-08': 1, '2026-09-09': 1},
+        )
 
     def test_security_excludes_old_activity_and_whitelist(self):
         from apps.access_log.models import AccessLog, IpSecurityRule

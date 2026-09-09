@@ -1,8 +1,10 @@
 from datetime import datetime, time, timedelta
 from collections import Counter
+from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Sum, Q
-from django.db.models.functions import TruncDate, Coalesce
+from django.db.models.functions import Coalesce
+from django.conf import settings
 from django.utils import timezone
 from apps.user.permissions import IsContentEditor
 from rest_framework.response import Response
@@ -16,6 +18,17 @@ from apps.access_log.models import AccessLog
 from apps.access_log.profile import build_ip_profiles
 
 
+def count_local_days(values, timezone_name):
+    """Count aware datetimes by local calendar day without DB timezone functions."""
+    target_zone = ZoneInfo(timezone_name)
+    counts = Counter()
+    for value in values:
+        if timezone.is_naive(value):
+            value = timezone.make_aware(value, timezone=timezone.utc)
+        counts[timezone.localtime(value, target_zone).date().isoformat()] += 1
+    return dict(counts)
+
+
 class StatsView(APIView):
     permission_classes = [IsContentEditor]
 
@@ -25,9 +38,11 @@ class StatsView(APIView):
         start = timezone.make_aware(datetime.combine(days[0], time.min))
         now = timezone.now()
         published = Dynamic.objects.filter(status='published')
-        counts = dict(published.filter(created_at__gte=start, created_at__lte=now)
-                      .annotate(day=TruncDate('created_at')).values('day')
-                      .annotate(count=Count('id')).values_list('day', 'count'))
+        published_values = published.filter(
+            created_at__gte=start,
+            created_at__lte=now,
+        ).order_by().values_list('created_at', flat=True).iterator(chunk_size=2000)
+        counts = count_local_days(published_values, settings.TIME_ZONE)
         logs = AccessLog.objects.filter(created_at__gte=start, created_at__lte=now)
         readings = logs.filter(method='GET', status_code__gte=200, status_code__lt=300,
                                path__regex=r'^/api/blog/dynamics/[0-9]+/$')
@@ -72,7 +87,8 @@ class StatsView(APIView):
                    .values('id', 'title', 'view_count', 'comment_count')[:5])
         return Response({'code': 200, 'message': 'success', 'data': {
             'total': dict(dynamics=Dynamic.objects.count(), categories=Category.objects.count(), tags=Tag.objects.count(), comments=Comment.objects.count()),
-            'daily': [dict(day=day.isoformat(), count=counts.get(day, 0), pv=pv_by_day.get(day, 0)) for day in days],
+            'daily': [dict(day=day.isoformat(), count=counts.get(day.isoformat(), 0), pv=pv_by_day.get(day, 0)) for day in days],
+            'range': dict(start=days[0].isoformat(), end=days[-1].isoformat(), timezone=settings.TIME_ZONE),
             'categories': taxonomy(Category), 'tags': taxonomy(Tag),
             'access': dict(requests=logs.count(), unique_ips=len(ips)),
             'visits': dict(pv=pv, uv=len(visitors), average=round(pv / 7, 1),
