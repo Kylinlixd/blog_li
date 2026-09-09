@@ -46,6 +46,14 @@ router.register(r'comments', CommentViewSet, basename='comment')
 router.register(r'access-logs', AccessLogViewSet, basename='access-log')
 router.register(r'access-log-rules', IpSecurityRuleViewSet, basename='access-log-rule')
 
+
+def hidden_api_root(request):
+    return JsonResponse(
+        {'code': 404, 'message': '请求的接口不存在', 'data': None},
+        status=404,
+    )
+
+
 public_blog_api_patterns = [
     path('dynamics/', DynamicViewSet.as_view({'get': 'list'}), name='api-blog-dynamics'),
     path('dynamics/timeline/', DynamicViewSet.as_view({'get': 'timeline'}), name='api-blog-dynamic-timeline'),
@@ -66,6 +74,7 @@ public_blog_api_patterns = [
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/blog/', include(public_blog_api_patterns)),
+    path('api/', hidden_api_root, name='api-root-hidden'),
     path('api/', include(router.urls)),
     
     # 认证相关

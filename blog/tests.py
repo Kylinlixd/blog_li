@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 from django.test import RequestFactory
 from django.http import HttpResponse
 from django.core.cache import cache
@@ -28,7 +28,18 @@ class EnvironmentParsingTests(SimpleTestCase):
             )
 
 
+@override_settings(MIDDLEWARE=[])
 class ProductionUrlTests(SimpleTestCase):
+    def test_api_root_does_not_expose_router_index(self):
+        response = self.client.get('/api/')
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_api_child_routes_remain_available(self):
+        response = self.client.get('/api/users/')
+
+        self.assertEqual(response.status_code, 401)
+
     def test_public_blog_api_has_api_prefix_alias(self):
         match = resolve('/api/blog/tags/')
 
