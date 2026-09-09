@@ -43,4 +43,4 @@
 - [x] Run the complete Django suite and deployment checks with safe temporary settings.
 - [x] Push the backend change to `main`.
 - [x] Back up the live URL configuration, deploy the code, restart Gunicorn, and verify `/api/` is `404`, `/api/users/` is `401`, and services are active.
-- [ ] Publish the final audit article titled `我的博客安全审计并修复` only after the live verification is complete.
+- [x] Publish the final audit article titled `我的博客安全审计并修复` as article ID 65 after live verification.
