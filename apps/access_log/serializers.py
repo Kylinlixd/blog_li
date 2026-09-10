@@ -10,7 +10,7 @@ class AccessLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AccessLog
-        fields = ['id', 'ip_address', 'ip_type', 'method', 'path', 'status_code', 'device_type', 'device_model', 'user_agent', 'username', 'created_at']
+        fields = ['id', 'ip_address', 'ip_type', 'method', 'path', 'status_code', 'device_type', 'device_model', 'user_agent', 'username', 'created_at', 'security_action', 'security_rule']
 
     def get_ip_type(self, obj):
         return classify_ip(obj.ip_address).get('ip_type', '未知')

@@ -192,13 +192,42 @@ class BlogCommentView(APIView):
             status='approved'
         ).select_related('author').order_by('-created_at')
         
+        thread_mode = request.query_params.get('thread') == '1'
+        if thread_mode:
+            root_queryset = queryset.filter(parent__isnull=True).order_by('-created_at', '-id')
+            page_size = min(max(int(request.query_params.get('pageSize', 10)), 1), 50)
+            page = max(int(request.query_params.get('page', 1)), 1)
+            start = (page - 1) * page_size
+            roots = list(root_queryset[start:start + page_size])
+            payload = []
+            for root in roots:
+                item = PublicCommentSerializer(root).data
+                replies = list(queryset.filter(parent_id=root.id).order_by('created_at', 'id')[:3])
+                item['replies_preview'] = PublicCommentSerializer(replies, many=True).data
+                item['reply_count'] = queryset.filter(parent_id=root.id).count()
+                payload.append(item)
+            total = root_queryset.count()
+            return Response({
+                'code': 200,
+                'message': 'success',
+                'data': {
+                    'list': payload,
+                    'total': total,
+                    'commentTotal': queryset.count(),
+                    'page': page,
+                    'pageSize': page_size,
+                },
+            })
+
         serializer = PublicCommentSerializer(queryset, many=True)
         return Response({
             'code': 200,
             'message': 'success',
             'data': {
                 'list': serializer.data,
-                'total': queryset.count()
+                'total': queryset.count(),
+                'page': 1,
+                'pageSize': queryset.count(),
             }
         })
     

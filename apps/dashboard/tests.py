@@ -100,3 +100,21 @@ class DashboardStatsTests(APITestCase):
         self.assertEqual(data['unique_ips'], 2)
         self.assertEqual(data['high'], 1)
         self.assertEqual([row['ip_address'] for row in data['top_ips']], ['192.168.1.2'])
+
+
+class SystemHealthTests(APITestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='health-editor',
+            password='PreviewA1!pass',
+            role='admin',
+        )
+
+    def test_health_requires_authentication_and_returns_minimal_status(self):
+        response = self.client.get('/api/system/health/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.client.force_authenticate(self.user)
+        response = self.client.get('/api/system/health/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['status'], 'ok')
+        self.assertIn('checked_at', response.data['data'])

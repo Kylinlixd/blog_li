@@ -36,6 +36,8 @@ class IpSecurityMiddleware(MiddlewareMixin):
             request.access_security_rule = rule
             return None
         if rule.rule_type in {'ban', 'blacklist'}:
+            request.access_security_rule = rule
+            request.access_security_action = 'blocked'
             return JsonResponse({
                 'code': 403,
                 'message': '该 IP 已被限制访问',
@@ -44,6 +46,8 @@ class IpSecurityMiddleware(MiddlewareMixin):
         if rule.rule_type == 'rate_limit':
             count = increment_rate_bucket(rule, ip_address)
             if count > (rule.requests or 0):
+                request.access_security_rule = rule
+                request.access_security_action = 'rate_limited'
                 response = JsonResponse({
                     'code': 429,
                     'message': '请求过于频繁，请稍后重试',
@@ -57,7 +61,11 @@ class IpSecurityMiddleware(MiddlewareMixin):
 class AccessLogMiddleware(MiddlewareMixin):
     """Persist API access metadata without logging static files or the log endpoint itself."""
     def process_response(self, request, response):
-        if request.path.startswith('/api/') and not request.path.startswith('/api/access-logs/'):
+        if (
+            request.path.startswith('/api/')
+            and not request.path.startswith('/api/access-logs/')
+            and request.path != '/api/system/health/'
+        ):
             try:
                 from apps.access_log.models import AccessLog
                 from apps.access_log.device import parse_user_agent
@@ -73,6 +81,8 @@ class AccessLogMiddleware(MiddlewareMixin):
                     device_type=device_type,
                     device_model=device_model,
                     user=request.user if getattr(request.user, 'is_authenticated', False) else None,
+                    security_rule=getattr(request, 'access_security_rule', None),
+                    security_action=getattr(request, 'access_security_action', ''),
                 )
             except Exception:
                 close_old_connections()

@@ -38,6 +38,55 @@ class PublicCommentVisibilityTests(APITestCase):
         self.assertEqual(response.data['data']['list'][0]['content'], '公开评论')
         self.assertNotIn('email', response.data['data']['list'][0])
 
+    def test_thread_mode_returns_replies_without_exposing_email(self):
+        root = Comment.objects.create(
+            author=self.user,
+            dynamic=self.dynamic,
+            content='根评论',
+            nickname='夕月',
+            status='approved',
+        )
+        Comment.objects.create(
+            author=self.user,
+            dynamic=self.dynamic,
+            parent=root,
+            content='回复评论',
+            nickname='小东',
+            status='approved',
+        )
+
+        response = self.client.get('/api/blog/comments/', {
+            'dynamic_id': self.dynamic.pk,
+            'thread': '1',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = next(row for row in response.data['data']['list'] if row['content'] == '根评论')
+        self.assertEqual(item['reply_count'], 1)
+        self.assertEqual(item['replies_preview'][0]['reply_to_nickname'], '夕月')
+        self.assertNotIn('email', item['replies_preview'][0])
+
+    def test_public_reply_rejects_parent_from_another_dynamic(self):
+        other = Dynamic.objects.create(
+            author=self.user,
+            title='另一篇文章',
+            content='正文',
+            status='published',
+        )
+        parent = Comment.objects.create(
+            author=self.user,
+            dynamic=other,
+            content='其他文章评论',
+            status='approved',
+        )
+        response = self.client.post('/api/blog/comments/', {
+            'dynamic_id': self.dynamic.pk,
+            'parent_id': parent.pk,
+            'content': '跨文章回复',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Comment.objects.filter(content='跨文章回复').exists())
+
     def test_public_list_does_not_expose_comments_from_a_draft(self):
         draft = Dynamic.objects.create(
             author=self.user,

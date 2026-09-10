@@ -23,18 +23,23 @@ class CommentSerializer(serializers.ModelSerializer):
     createTime = serializers.DateTimeField(source='created_at')
     avatar = serializers.SerializerMethodField()
     content = serializers.SerializerMethodField()
+    parent_id = serializers.IntegerField(read_only=True)
+    root_id = serializers.SerializerMethodField()
+    reply_to_nickname = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Comment
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
-            'email', 'avatar', 'createTime', 'status'
+            'email', 'avatar', 'createTime', 'status', 'parent_id',
+            'root_id', 'reply_to_nickname', 'reply_count'
         ]
     
     def get_avatar(self, obj):
         if obj.author and obj.author.avatar:
             return obj.author.avatar
-        return '/default-avatar.png'
+        return ''
     
     def get_content(self, obj):
         # 只有待审核状态的评论才添加审核中标记
@@ -43,20 +48,36 @@ class CommentSerializer(serializers.ModelSerializer):
         # 已通过或已拒绝的评论直接返回原内容
         return obj.content
 
+    def get_root_id(self, obj):
+        current = obj
+        visited = set()
+        while current.parent_id and current.parent_id not in visited:
+            visited.add(current.parent_id)
+            current = current.parent
+        return current.id
+
+    def get_reply_to_nickname(self, obj):
+        return obj.parent.nickname if obj.parent_id and obj.parent else ''
+
+    def get_reply_count(self, obj):
+        return obj.replies.filter(status='approved').count()
+
 
 class PublicCommentSerializer(CommentSerializer):
     class Meta(CommentSerializer.Meta):
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
-            'avatar', 'createTime', 'status'
+            'avatar', 'createTime', 'status', 'parent_id', 'root_id',
+            'reply_to_nickname', 'reply_count'
         ]
 
 class CommentCreateSerializer(serializers.ModelSerializer):
     dynamic_id = serializers.IntegerField(write_only=True)
+    parent_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     
     class Meta:
         model = Comment
-        fields = ['content', 'dynamic_id', 'nickname', 'email']
+        fields = ['content', 'dynamic_id', 'nickname', 'email', 'parent_id']
         extra_kwargs = {
             'content': {'max_length': 2000, 'allow_blank': False, 'trim_whitespace': True},
             'nickname': {'max_length': 50, 'allow_blank': True},
@@ -69,8 +90,25 @@ class CommentCreateSerializer(serializers.ModelSerializer):
             if any(re.sub(r'[\W_]+', '', term.casefold(), flags=re.UNICODE) in normalized for term in REJECTED_CONTENT_TERMS):
                 raise serializers.ValidationError('评论包含暴力、涉黄或其他违规内容，请规范言辞后重试。')
         return value
+
+    def validate(self, attrs):
+        parent_id = attrs.get('parent_id')
+        dynamic_id = attrs.get('dynamic_id')
+        if parent_id:
+            try:
+                parent = Comment.objects.get(
+                    id=parent_id,
+                    dynamic_id=dynamic_id,
+                    status='approved',
+                )
+            except Comment.DoesNotExist:
+                raise serializers.ValidationError({'parent_id': '回复目标不存在或暂不可见'})
+            attrs['_parent'] = parent
+        return attrs
     
     def create(self, validated_data):
+        validated_data.pop('_parent', None)
+        parent_id = validated_data.pop('parent_id', None)
         # 如果是前台请求，使用默认用户（游客）
         if is_public_blog_request(self.context['request']):
             dynamic_id = validated_data.pop('dynamic_id')
@@ -105,6 +143,8 @@ class CommentCreateSerializer(serializers.ModelSerializer):
             validated_data['author'] = self.context['request'].user
             validated_data['status'] = 'pending'  # 后台创建的评论默认待审核
         
+        if parent_id:
+            validated_data['parent_id'] = parent_id
         return super().create(validated_data)
 
 class CommentUpdateSerializer(serializers.ModelSerializer):

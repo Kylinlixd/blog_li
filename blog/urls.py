@@ -34,6 +34,7 @@ from apps.upload.views import (
     PublicFileDownloadView, PublicFilePosterDownloadView,
 )
 from apps.dashboard.views import StatsView
+from apps.dashboard.health import SystemHealthView
 from apps.access_log.views import AccessLogViewSet, IpSecurityRuleViewSet
 
 # 创建路由器
@@ -95,6 +96,7 @@ urlpatterns = [
     
     # 仪表盘统计API
     path('api/stats/', StatsView.as_view(), name='stats'),
+    path('api/system/health/', SystemHealthView.as_view(), name='system-health'),
 ]
 
 # 开发环境下提供媒体文件服务

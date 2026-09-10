@@ -1,4 +1,6 @@
 import ipaddress
+from django.utils import timezone
+from datetime import timedelta
 from rest_framework.exceptions import ValidationError
 from apps.user.permissions import IsContentEditor
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
@@ -60,10 +62,13 @@ class AccessLogViewSet(ReadOnlyModelViewSet):
         elif ip_filter:
             rows = rows.filter(ip_address__icontains=ip_filter)
         risk = request.query_params.get('risk', '')
+        risk_group = request.query_params.get('riskGroup', '')
         scope = request.query_params.get('network', '')
         region = request.query_params.get('region', '').strip().casefold()
         if risk and risk not in {'low', 'medium', 'high', 'critical'}:
             raise ValidationError({'risk': '无效风险等级'})
+        if risk_group and risk_group != 'high_plus':
+            raise ValidationError({'riskGroup': '无效风险分组'})
         if scope and scope not in {'private', 'public'}:
             raise ValidationError({'network': '请选择内网或公网'})
         profiles = []
@@ -74,8 +79,15 @@ class AccessLogViewSet(ReadOnlyModelViewSet):
             if region and region not in ' '.join(str(profile['geo'].get(key, '')) for key in ('country', 'region', 'city', 'location')).casefold():
                 continue
             profiles.append(profile)
-        summary = {'high_risk': sum(p['risk_level'] in ('high', 'critical') for p in profiles)}
-        if risk:
+        cutoff = timezone.now() - timedelta(days=7)
+        summary = {
+            'high_risk': sum(p['risk_level'] in ('high', 'critical') for p in profiles),
+            'blocked_requests': AccessLog.objects.filter(created_at__gte=cutoff, security_action__in=('blocked', 'rate_limited')).count(),
+            'tracking_started_at': cutoff.isoformat(),
+        }
+        if risk_group == 'high_plus':
+            profiles = [profile for profile in profiles if profile['risk_level'] in ('high', 'critical')]
+        elif risk:
             profiles = [profile for profile in profiles if profile['risk_level'] == risk]
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(profiles, request, view=self)
