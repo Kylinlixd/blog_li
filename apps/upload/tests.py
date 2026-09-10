@@ -493,6 +493,57 @@ class FileStorageViewTests(APITestCase):
         self.assertEqual("nosniff", response["X-Content-Type-Options"])
 
     @patch("apps.upload.views.backend_for_file")
+    def test_authenticated_pdf_preview_is_inline_and_does_not_increment_downloads(self, backend_factory):
+        uploaded = self._create_file(
+            name="guide.pdf",
+            file_type="document",
+            file_size=8,
+            content_type="application/pdf",
+            storage_backend="xion",
+            storage_key="pdf-key",
+            download_count=4,
+        )
+        stream = tempfile.SpooledTemporaryFile()
+        stream.write(b"%PDF-1.7\n")
+        stream.seek(0)
+        backend_factory.return_value.open.return_value = OpenedObject(
+            stream=stream,
+            size=8,
+            content_type="application/pdf",
+        )
+
+        response = self.client.get(f"/api/upload/files/{uploaded.id}/preview/")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(b"%PDF-1.7\n", b"".join(response.streaming_content))
+        self.assertEqual("application/pdf", response["Content-Type"])
+        self.assertTrue(response["Content-Disposition"].startswith("inline;"))
+        self.assertEqual("4", str(UploadFile.objects.get(id=uploaded.id).download_count))
+
+    @patch("apps.upload.views.backend_for_file")
+    def test_pdf_preview_rejects_non_pdf_content(self, backend_factory):
+        uploaded = self._create_file(
+            name="not-pdf.txt",
+            file_type="document",
+            file_size=3,
+            content_type="text/plain",
+            storage_backend="xion",
+            storage_key="text-key",
+        )
+        stream = tempfile.SpooledTemporaryFile()
+        stream.write(b"abc")
+        stream.seek(0)
+        backend_factory.return_value.open.return_value = OpenedObject(
+            stream=stream,
+            size=3,
+            content_type="text/plain",
+        )
+
+        response = self.client.get(f"/api/upload/files/{uploaded.id}/preview/")
+
+        self.assertEqual(415, response.status_code)
+
+    @patch("apps.upload.views.backend_for_file")
     def test_public_download_allows_anonymous_reader(self, backend_factory):
         uploaded = self._create_file(is_public=True)
         stream = tempfile.SpooledTemporaryFile()

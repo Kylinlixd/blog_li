@@ -144,6 +144,12 @@ class FileManagementViewSet(ModelViewSet):
             return response
         file_obj.increase_download_count()
         return response
+
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        """Return a bounded, authenticated inline PDF preview without counting a download."""
+        file_obj = self.get_object()
+        return _pdf_preview_response(file_obj)
     
     @action(detail=False, methods=['get'])
     def search(self, request):
@@ -461,6 +467,58 @@ def _file_response(file_obj, as_attachment):
     response['Content-Type'] = content_type if safe_inline else 'application/octet-stream'
     response['Content-Length'] = str(opened.size)
     response['ETag'] = f'"sha256-{file_obj.checksum}"' if file_obj.checksum else ''
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
+PDF_PREVIEW_MAX_BYTES = 50 * 1024 * 1024
+
+
+def _pdf_preview_response(file_obj):
+    if file_obj.file_size and file_obj.file_size > PDF_PREVIEW_MAX_BYTES:
+        return Response({
+            'code': 'pdf_preview_too_large',
+            'message': 'PDF 超过在线预览大小限制，请下载后查看',
+            'data': None,
+        }, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+
+    try:
+        opened = backend_for_file(file_obj).open(_storage_key(file_obj))
+    except StorageNotFound:
+        return Response({'code': 404, 'message': '文件不存在', 'data': None}, status=status.HTTP_404_NOT_FOUND)
+    except StorageUnavailable:
+        return Response({'code': 503, 'message': '存储服务暂时不可用', 'data': None}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        if opened.size > PDF_PREVIEW_MAX_BYTES:
+            opened.close()
+            return Response({
+                'code': 'pdf_preview_too_large',
+                'message': 'PDF 超过在线预览大小限制，请下载后查看',
+                'data': None,
+            }, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+        header = opened.stream.read(5)
+        opened.stream.seek(0)
+        content_type = (file_obj.content_type or opened.content_type or '').lower().split(';', 1)[0].strip()
+        filename_is_pdf = str(file_obj.name or '').lower().endswith('.pdf')
+        declared_pdf = content_type in {'', 'application/pdf', 'application/octet-stream'} or filename_is_pdf
+        if header != b'%PDF-' or not declared_pdf:
+            opened.close()
+            return Response({
+                'code': 'not_pdf',
+                'message': '该文件不是可预览的 PDF',
+                'data': None,
+            }, status=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+    except (AttributeError, OSError, ValueError):
+        opened.close()
+        return Response({'code': 'not_pdf', 'message': '该文件不是可预览的 PDF', 'data': None}, status=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+
+    response = FileResponse(opened.stream, as_attachment=False, filename=file_obj.name)
+    response['Content-Type'] = 'application/pdf'
+    response['Content-Length'] = str(opened.size)
+    safe_name = os.path.basename(file_obj.name).replace('"', '')
+    response['Content-Disposition'] = f'inline; filename="{safe_name}"'
+    response['Cache-Control'] = 'private, no-store'
     response['X-Content-Type-Options'] = 'nosniff'
     return response
 
