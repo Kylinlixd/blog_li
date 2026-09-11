@@ -246,7 +246,12 @@ class DynamicAPITests(APITestCase):
             f'/api/blog/dynamics/{self.published.pk}/like/',
             HTTP_X_FORWARDED_FOR='203.0.113.5',
         )
-        self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(duplicate.status_code, status.HTTP_200_OK)
+        self.assertEqual(duplicate.data['code'], 200)
+        self.assertEqual(duplicate.data['message'], '你已点赞，无需重复操作')
+        self.assertTrue(duplicate.data['data']['liked'])
+        self.assertTrue(duplicate.data['data']['already_liked'])
+        self.assertEqual(duplicate.data['data']['like_count'], 1)
 
         another_ip = self.client.post(
             f'/api/blog/dynamics/{self.published.pk}/like/',

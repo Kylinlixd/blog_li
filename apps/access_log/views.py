@@ -67,7 +67,7 @@ class AccessLogViewSet(ReadOnlyModelViewSet):
                 created_at__gte=cutoff,
                 created_at__lte=now,
                 ip_address__isnull=False,
-            ).values_list('ip_address', flat=True).distinct()
+            ).order_by().values_list('ip_address', flat=True).distinct()
         )
         profiles = build_ip_profiles(addresses, now=now, since=cutoff)
         active_rules = IpSecurityRule.objects.filter(status='active').filter(

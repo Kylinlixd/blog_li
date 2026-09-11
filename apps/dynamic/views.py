@@ -432,13 +432,14 @@ class DynamicViewSet(ModelViewSet):
                 else:
                     if dynamic.ip_likes.filter(ip_address=ip_address).exists():
                         return Response({
-                            'code': 400,
-                            'message': '您已经点过赞了',
+                            'code': 200,
+                            'message': '你已点赞，无需重复操作',
                             'data': {
                                 'liked': True,
-                                'like_count': dynamic.like_count
+                                'like_count': dynamic.like_count,
+                                'already_liked': True,
                             }
-                        }, status=status.HTTP_400_BAD_REQUEST)
+                        })
                     dynamic.like_count += 1
                     dynamic.save(update_fields=['like_count'])
                     dynamic.ip_likes.create(ip_address=ip_address)

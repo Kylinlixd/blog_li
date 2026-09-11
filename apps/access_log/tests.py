@@ -279,6 +279,31 @@ class AccessLogSecurityApiTests(APITestCase):
         self.assertIn('window_start', response.data['data'])
         self.assertIn('window_end', response.data['data'])
 
+    def test_overview_counts_each_ip_once_even_with_default_model_ordering(self):
+        AccessLog.objects.all().delete()
+        now = timezone.now()
+        first = AccessLog.objects.create(
+            ip_address='198.51.100.60',
+            method='GET',
+            path='/api/health/',
+            status_code=200,
+        )
+        second = AccessLog.objects.create(
+            ip_address='198.51.100.60',
+            method='GET',
+            path='/api/health/',
+            status_code=200,
+        )
+        self._set_created_at([first], now - timedelta(hours=1))
+        self._set_created_at([second], now - timedelta(hours=2))
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get('/api/access-logs/overview/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['active_ips'], 1)
+        self.assertEqual(response.data['data']['high_risk_ips'], 0)
+
     def test_profiles_window_and_blocked_group_filter_are_explicit(self):
         AccessLog.objects.all().delete()
         now = timezone.now()
