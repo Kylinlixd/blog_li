@@ -221,6 +221,106 @@ class AccessLogSecurityApiTests(APITestCase):
         response = self.client.get('/api/access-logs/profiles/')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def _set_created_at(self, rows, created_at):
+        AccessLog.objects.filter(pk__in=[row.pk for row in rows]).update(created_at=created_at)
+
+    def test_overview_is_independent_from_profile_filters_and_uses_recent_window(self):
+        AccessLog.objects.all().delete()
+        now = timezone.now()
+        active = []
+        for ip, code in (
+            ('198.51.100.40', 200),
+            ('198.51.100.41', 400),
+            ('198.51.100.42', 500),
+        ):
+            row = AccessLog.objects.create(
+                ip_address=ip,
+                method='GET',
+                path='/api/health/',
+                status_code=code,
+            )
+            active.append(row)
+        auth_failures = [
+            AccessLog.objects.create(
+                ip_address='198.51.100.42',
+                method='POST',
+                path='/api/auth/login/',
+                status_code=401,
+            )
+            for _ in range(8)
+        ]
+        old = AccessLog.objects.create(
+            ip_address='198.51.100.99',
+            method='GET',
+            path='/api/old/',
+            status_code=500,
+        )
+        self._set_created_at(active + auth_failures, now - timedelta(hours=1))
+        self._set_created_at([old], now - timedelta(days=8))
+        IpSecurityRule.objects.create(target='198.51.100.41', rule_type='whitelist')
+        AccessLog.objects.filter(pk=active[2].pk).update(security_action='blocked')
+        self.client.force_authenticate(self.user)
+        response = self.client.get('/api/access-logs/overview/', {
+            'ip': '198.51.100.40',
+            'risk': 'low',
+            'network': 'private',
+            'region': '不存在',
+            'page': 9,
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data['data']['active_ips'],
+            3,
+        )
+        self.assertEqual(response.data['data']['high_risk_ips'], 1)
+        self.assertEqual(response.data['data']['active_rules'], 1)
+        self.assertEqual(response.data['data']['blocked_requests'], 1)
+        self.assertIn('window_start', response.data['data'])
+        self.assertIn('window_end', response.data['data'])
+
+    def test_profiles_window_and_blocked_group_filter_are_explicit(self):
+        AccessLog.objects.all().delete()
+        now = timezone.now()
+        recent = AccessLog.objects.create(
+            ip_address='198.51.100.50',
+            method='GET',
+            path='/api/recent/',
+            status_code=403,
+            security_action='blocked',
+        )
+        old = AccessLog.objects.create(
+            ip_address='198.51.100.51',
+            method='GET',
+            path='/api/old/',
+            status_code=403,
+            security_action='blocked',
+        )
+        self._set_created_at([recent], now - timedelta(hours=1))
+        self._set_created_at([old], now - timedelta(days=8))
+        self.client.force_authenticate(self.user)
+
+        profiles = self.client.get('/api/access-logs/profiles/', {'window': '7d'})
+        self.assertEqual(profiles.status_code, status.HTTP_200_OK)
+        self.assertEqual(profiles.data['data']['total'], 1)
+        self.assertEqual(profiles.data['data']['list'][0]['ip_address'], '198.51.100.50')
+
+        blocked = self.client.get('/api/access-logs/', {'securityGroup': 'blocked', 'window': '7d'})
+        self.assertEqual(blocked.status_code, status.HTTP_200_OK)
+        self.assertEqual(blocked.data['data']['total'], 1)
+        self.assertEqual(blocked.data['data']['list'][0]['security_action'], 'blocked')
+
+    def test_invalid_profile_window_and_security_group_return_bad_request(self):
+        self.client.force_authenticate(self.user)
+        self.assertEqual(
+            self.client.get('/api/access-logs/profiles/', {'window': '30d'}).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            self.client.get('/api/access-logs/', {'securityGroup': 'unknown'}).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
     def test_staff_can_browse_profiles_and_details(self):
         self.client.force_authenticate(self.user)
         response = self.client.get('/api/access-logs/profiles/')

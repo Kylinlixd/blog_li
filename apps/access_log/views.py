@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from .models import AccessLog, IpSecurityRule
 from .profile import build_ip_profile, build_ip_profiles
 from .geo import lookup_geo
@@ -37,6 +37,12 @@ class AccessLogViewSet(ReadOnlyModelViewSet):
         ip = self.request.query_params.get('ip')
         status_code = self.request.query_params.get('status')
         path = self.request.query_params.get('path')
+        window = self.request.query_params.get('window', '')
+        security_group = self.request.query_params.get('securityGroup', '')
+        if window and window != '7d':
+            raise ValidationError({'window': '仅支持 7d 时间窗口'})
+        if security_group and security_group != 'blocked':
+            raise ValidationError({'securityGroup': '无效安全分组'})
         if ip:
             queryset = queryset.filter(ip_address__icontains=ip.strip())
         if status_code and status_code.strip() in {'2', '3', '4', '5'}:
@@ -44,11 +50,59 @@ class AccessLogViewSet(ReadOnlyModelViewSet):
             queryset = queryset.filter(status_code__gte=family, status_code__lt=family + 100)
         if path:
             queryset = queryset.filter(path__icontains=path.strip())
+        if window == '7d':
+            cutoff = timezone.now() - timedelta(days=7)
+            queryset = queryset.filter(created_at__gte=cutoff, created_at__lte=timezone.now())
+        if security_group == 'blocked':
+            queryset = queryset.filter(security_action__in=('blocked', 'rate_limited'))
         return queryset
 
     @action(detail=False, methods=['get'])
+    def overview(self, request):
+        """Return global seven-day security counters independent of list filters."""
+        now = timezone.now()
+        cutoff = now - timedelta(days=7)
+        addresses = list(
+            AccessLog.objects.filter(
+                created_at__gte=cutoff,
+                created_at__lte=now,
+                ip_address__isnull=False,
+            ).values_list('ip_address', flat=True).distinct()
+        )
+        profiles = build_ip_profiles(addresses, now=now, since=cutoff)
+        active_rules = IpSecurityRule.objects.filter(status='active').filter(
+            Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+        ).count()
+        blocked_requests = AccessLog.objects.filter(
+            created_at__gte=cutoff,
+            created_at__lte=now,
+            security_action__in=('blocked', 'rate_limited'),
+        ).count()
+        return Response({
+            'code': 200,
+            'message': 'success',
+            'data': {
+                'active_ips': len(profiles),
+                'high_risk_ips': sum(profile['risk_level'] in ('high', 'critical') for profile in profiles),
+                'active_rules': active_rules,
+                'blocked_requests': blocked_requests,
+                'window_start': cutoff.isoformat(),
+                'window_end': now.isoformat(),
+                'generated_at': now.isoformat(),
+            },
+        })
+
+    @action(detail=False, methods=['get'])
     def profiles(self, request):
-        rows = AccessLog.objects.values('ip_address').annotate(
+        window = request.query_params.get('window', '')
+        if window and window != '7d':
+            raise ValidationError({'window': '仅支持 7d 时间窗口'})
+        now = timezone.now()
+        cutoff = now - timedelta(days=7) if window == '7d' else None
+        log_queryset = AccessLog.objects.all()
+        if cutoff:
+            log_queryset = log_queryset.filter(created_at__gte=cutoff, created_at__lte=now)
+        rows = log_queryset.values('ip_address').annotate(
             total=Count('id'),
             last_seen=Max('created_at'),
         ).filter(ip_address__isnull=False).order_by('-last_seen')
@@ -73,7 +127,7 @@ class AccessLogViewSet(ReadOnlyModelViewSet):
             raise ValidationError({'network': '请选择内网或公网'})
         profiles = []
         addresses = [row['ip_address'] for row in rows if not network or ipaddress.ip_address(row['ip_address']) in network]
-        for profile in build_ip_profiles(addresses):
+        for profile in build_ip_profiles(addresses, now=now, since=cutoff):
             if scope and profile['is_public'] != (scope == 'public'):
                 continue
             if region and region not in ' '.join(str(profile['geo'].get(key, '')) for key in ('country', 'region', 'city', 'location')).casefold():
