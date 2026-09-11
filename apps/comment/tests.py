@@ -119,6 +119,20 @@ class PublicCommentVisibilityTests(APITestCase):
         self.assertEqual(comment.author.username, 'guest')
         self.assertNotEqual(comment.author_id, self.user.pk)
 
+    def test_public_comment_accepts_optional_website_and_returns_it_for_approved_comments(self):
+        response = self.client.post('/api/blog/comments/', {
+            'dynamic_id': self.dynamic.pk,
+            'content': '带主页的评论',
+            'website': 'https://example.com/profile',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        comment = Comment.objects.get(content='带主页的评论')
+        self.assertEqual(comment.website, 'https://example.com/profile')
+        listed = self.client.get('/api/blog/comments/', {'dynamic_id': self.dynamic.pk})
+        item = next(row for row in listed.data['data']['list'] if row['content'] == '带主页的评论')
+        self.assertEqual(item['website'], 'https://example.com/profile')
+
     def test_api_blog_prefix_allows_anonymous_comment_submission(self):
         response = self.client.post('/api/blog/comments/', {
             'dynamic_id': self.dynamic.pk,

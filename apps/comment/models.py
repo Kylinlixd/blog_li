@@ -18,6 +18,7 @@ class Comment(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     nickname = models.CharField(max_length=50, blank=True, help_text="评论者昵称")
     email = models.EmailField(blank=True, help_text="评论者邮箱")
+    website = models.URLField(max_length=500, blank=True, default='', help_text="评论者网址")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

@@ -33,7 +33,7 @@ class CommentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
             'email', 'avatar', 'createTime', 'status', 'parent_id',
-            'root_id', 'reply_to_nickname', 'reply_count'
+            'root_id', 'reply_to_nickname', 'reply_count', 'website'
         ]
     
     def get_avatar(self, obj):
@@ -68,7 +68,7 @@ class PublicCommentSerializer(CommentSerializer):
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
             'avatar', 'createTime', 'status', 'parent_id', 'root_id',
-            'reply_to_nickname', 'reply_count'
+            'reply_to_nickname', 'reply_count', 'website'
         ]
 
 class CommentCreateSerializer(serializers.ModelSerializer):
@@ -77,11 +77,12 @@ class CommentCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Comment
-        fields = ['content', 'dynamic_id', 'nickname', 'email', 'parent_id']
+        fields = ['content', 'dynamic_id', 'nickname', 'email', 'website', 'parent_id']
         extra_kwargs = {
             'content': {'max_length': 2000, 'allow_blank': False, 'trim_whitespace': True},
             'nickname': {'max_length': 50, 'allow_blank': True},
             'email': {'max_length': 254, 'allow_blank': True},
+            'website': {'max_length': 500, 'allow_blank': True, 'required': False},
         }
 
     def validate_content(self, value):
@@ -150,7 +151,7 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 class CommentUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
-        fields = ['content', 'status', 'nickname', 'email']
+        fields = ['content', 'status', 'nickname', 'email', 'website']
     
     def validate_status(self, value):
         if value not in ['pending', 'approved', 'rejected']:
