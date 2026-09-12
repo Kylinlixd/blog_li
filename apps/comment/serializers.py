@@ -28,13 +28,14 @@ class CommentSerializer(serializers.ModelSerializer):
     root_id = serializers.SerializerMethodField()
     reply_to_nickname = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
+    is_unread = serializers.SerializerMethodField()
     
     class Meta:
         model = Comment
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
             'email', 'avatar', 'createTime', 'status', 'parent_id',
-            'root_id', 'reply_to_nickname', 'reply_count', 'website',
+            'root_id', 'reply_to_nickname', 'reply_count', 'is_unread', 'website',
             'client_os', 'client_browser'
         ]
     
@@ -63,6 +64,9 @@ class CommentSerializer(serializers.ModelSerializer):
 
     def get_reply_count(self, obj):
         return obj.replies.filter(status='approved').count()
+
+    def get_is_unread(self, obj):
+        return bool(getattr(obj, 'is_unread', False))
 
 
 class PublicCommentSerializer(CommentSerializer):

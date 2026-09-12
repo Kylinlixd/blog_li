@@ -4,11 +4,12 @@ from apps.user.permissions import IsContentEditor
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef, Case, When, Value, BooleanField
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle
-from .models import Comment
+from .models import Comment, CommentReadReceipt
 from .serializers import (
     CommentSerializer, CommentCreateSerializer,
     CommentUpdateSerializer, PublicCommentSerializer
@@ -41,6 +42,8 @@ class CommentViewSet(ModelViewSet):
     throttle_scope = 'public_comment'
     
     def get_permissions(self):
+        if self.action in {'unread_summary', 'mark_read'}:
+            return super().get_permissions()
         # 如果是前台请求，允许匿名访问列表和创建
         if is_public_blog_request(self.request):
             return [AllowAny()]
@@ -76,6 +79,15 @@ class CommentViewSet(ModelViewSet):
             status = self.request.query_params.get('status')
             if status:
                 queryset = queryset.filter(status=status)
+            receipt = CommentReadReceipt.objects.filter(user=self.request.user, comment_id=OuterRef('pk'))
+            queryset = queryset.annotate(is_unread=Case(
+                When(author=self.request.user, then=Value(False)),
+                When(status='rejected', then=Value(False)),
+                default=~Exists(receipt),
+                output_field=BooleanField(),
+            ))
+            if self.request.query_params.get('unread') == '1':
+                queryset = queryset.filter(is_unread=True).exclude(status='rejected').exclude(author=self.request.user)
     
         # 过滤条件
         dynamic_id = self.request.query_params.get('dynamic_id')
@@ -91,6 +103,31 @@ class CommentViewSet(ModelViewSet):
             )
     
         return queryset
+
+    def _unread_queryset(self, user):
+        receipt = CommentReadReceipt.objects.filter(user=user, comment_id=OuterRef('pk'))
+        return Comment.objects.select_related('author', 'dynamic').annotate(
+            is_unread=~Exists(receipt)
+        ).filter(is_unread=True).exclude(author=user).exclude(status='rejected')
+
+    @action(detail=False, methods=['get'], url_path='unread-summary')
+    def unread_summary(self, request):
+        unread_count = self._unread_queryset(request.user).count()
+        return Response({'code': 200, 'message': 'success', 'data': {'unread_count': unread_count}})
+
+    @action(detail=False, methods=['post'], url_path='mark-read')
+    def mark_read(self, request):
+        ids = request.data.get('ids', [])
+        if not isinstance(ids, list) or len(ids) > 100:
+            return Response({'code': 400, 'message': 'ids 必须是最多 100 个评论 ID 的数组'}, status=status.HTTP_400_BAD_REQUEST)
+        visible_ids = set(self._unread_queryset(request.user).filter(id__in=ids).values_list('id', flat=True))
+        now = timezone.now()
+        CommentReadReceipt.objects.bulk_create(
+            [CommentReadReceipt(user=request.user, comment_id=comment_id, read_at=now) for comment_id in visible_ids],
+            ignore_conflicts=True,
+        )
+        unread_count = self._unread_queryset(request.user).count()
+        return Response({'code': 200, 'message': 'success', 'data': {'marked': len(visible_ids), 'unread_count': unread_count}})
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()

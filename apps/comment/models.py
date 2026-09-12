@@ -32,3 +32,16 @@ class Comment(models.Model):
     
     def __str__(self):
         return f"{self.nickname or self.author.username}'s comment on {self.dynamic}"
+
+
+class CommentReadReceipt(models.Model):
+    """Per-admin read marker; absence means the comment is unread."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comment_read_receipts')
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='read_receipts')
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'comment_read_receipt'
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'comment'], name='unique_comment_read_receipt'),
+        ]

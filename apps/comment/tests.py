@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
-from apps.comment.models import Comment
+from apps.comment.models import Comment, CommentReadReceipt
 from apps.comment.device import parse_client_metadata
 from apps.dynamic.models import Dynamic
 
@@ -139,6 +139,7 @@ class PublicCommentVisibilityTests(APITestCase):
         self.assertEqual(response.data['data']['nickname'], '站点作者')
         self.assertEqual(response.data['data']['avatar'], '/media/avatars/author.png')
 
+
     def test_public_comment_records_and_returns_client_system_and_browser(self):
         user_agent = (
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -271,3 +272,37 @@ class PublicCommentVisibilityTests(APITestCase):
         response = self.client.post('/api/blog/comments/', payload, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+class CommentNotificationTests(APITestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username='moderator', email='moderator@example.com', role='admin')
+        self.author = get_user_model().objects.create_user(username='visitor', email='visitor@example.com')
+        self.dynamic = Dynamic.objects.create(author=self.admin, title='通知文章', content='正文', status='published')
+        self.comment = Comment.objects.create(author=self.author, dynamic=self.dynamic, content='新评论', status='approved')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {AccessToken.for_user(self.admin)}')
+
+    def test_unread_summary_counts_new_comments_but_excludes_own_comments(self):
+        response = self.client.get('/api/comments/unread-summary/')
+        self.assertEqual(response.data['data']['unread_count'], 1)
+        Comment.objects.create(author=self.admin, dynamic=self.dynamic, content='自己的评论', status='approved')
+        response = self.client.get('/api/comments/unread-summary/')
+        self.assertEqual(response.data['data']['unread_count'], 1)
+
+    def test_mark_read_is_idempotent_and_returns_remaining_count(self):
+        response = self.client.post('/api/comments/mark-read/', {'ids': [self.comment.pk]}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['unread_count'], 0)
+        self.assertEqual(CommentReadReceipt.objects.filter(user=self.admin, comment=self.comment).count(), 1)
+        again = self.client.post('/api/comments/mark-read/', {'ids': [self.comment.pk]}, format='json')
+        self.assertEqual(again.data['data']['marked'], 0)
+
+    def test_unread_list_is_scoped_to_current_user_and_marks_rows(self):
+        response = self.client.get('/api/comments/?unread=1')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['total'], 1)
+        self.assertTrue(response.data['data']['list'][0]['is_unread'])
+
+    def test_public_path_cannot_access_notification_actions(self):
+        response = self.client.get('/api/blog/comments/unread-summary/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
