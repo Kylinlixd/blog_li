@@ -319,6 +319,26 @@ class FileStorageViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
 
+    def test_avatar_upload_makes_file_readable_to_web_server(self):
+        avatar = SimpleUploadedFile(
+            "avatar.png",
+            b"\x89PNG\r\n\x1a\nminimal-avatar",
+            content_type="image/png",
+        )
+
+        with tempfile.TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
+            previous_umask = os.umask(0o027)
+            try:
+                response = self.client.post("/api/upload/avatar/", {"file": avatar})
+            finally:
+                os.umask(previous_umask)
+
+            self.assertEqual(200, response.status_code)
+            filename = Path(response.data["data"]["url"]).name
+            avatar_path = Path(directory) / "avatars" / filename
+            self.assertTrue(avatar_path.exists())
+            self.assertEqual(0o644, avatar_path.stat().st_mode & 0o777)
+
     @patch("apps.upload.views.get_storage_backend")
     def test_upload_persists_storage_identity_and_stable_url(self, backend_factory):
         backend_factory.return_value.save.return_value = StoredObject(

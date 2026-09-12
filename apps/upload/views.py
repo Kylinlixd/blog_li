@@ -236,6 +236,10 @@ class AvatarUploadView(APIView):
             with open(file_path, 'wb+') as destination:
                 for chunk in file.chunks():
                     destination.write(chunk)
+            # Gunicorn runs with a restrictive umask, while Nginx serves the
+            # public media directory as www-data. Make the finished avatar
+            # readable without granting write access to the web server.
+            os.chmod(file_path, 0o644)
             
             # 获取URL
             file_url = f"{settings.MEDIA_URL}avatars/{filename}"
