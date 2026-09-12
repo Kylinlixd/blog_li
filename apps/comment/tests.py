@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.comment.models import Comment
 from apps.dynamic.models import Dynamic
@@ -118,6 +119,24 @@ class PublicCommentVisibilityTests(APITestCase):
         comment = Comment.objects.get(content='来自访客的反馈')
         self.assertEqual(comment.author.username, 'guest')
         self.assertNotEqual(comment.author_id, self.user.pk)
+
+    def test_authenticated_public_comment_uses_the_logged_in_author_and_avatar(self):
+        self.user.nickname = '站点作者'
+        self.user.avatar = '/media/avatars/author.png'
+        self.user.save(update_fields=['nickname', 'avatar'])
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {AccessToken.for_user(self.user)}')
+
+        response = self.client.post('/api/blog/comments/', {
+            'dynamic_id': self.dynamic.pk,
+            'content': '博主回复读者',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        comment = Comment.objects.get(content='博主回复读者')
+        self.assertEqual(comment.author_id, self.user.pk)
+        self.assertEqual(comment.nickname, '站点作者')
+        self.assertEqual(response.data['data']['nickname'], '站点作者')
+        self.assertEqual(response.data['data']['avatar'], '/media/avatars/author.png')
 
     def test_public_comment_accepts_optional_website_and_returns_it_for_approved_comments(self):
         response = self.client.post('/api/blog/comments/', {

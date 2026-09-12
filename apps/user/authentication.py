@@ -1,5 +1,6 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework.exceptions import AuthenticationFailed
 from django.utils.translation import gettext_lazy as _
 import jwt
 from django.conf import settings
@@ -11,10 +12,26 @@ class CustomJWTAuthentication(JWTAuthentication):
     自定义JWT认证后端，添加黑名单检查
     """
     def authenticate(self, request):
-        # 公开博客接口不应因旧页面携带的失效管理令牌而变成 401。
-        # 公开接口本身不依赖登录态，直接按匿名请求继续权限判断。
+        # 公开博客接口允许匿名访问，但有效的登录令牌仍应保留，
+        # 这样登录用户在前台发表评论时可以绑定自己的作者和头像。
         if is_public_blog_request(request):
-            return None
+            header = self.get_header(request)
+            if not header:
+                return None
+            raw_token = self.get_raw_token(header)
+            if raw_token is None:
+                return None
+            try:
+                auth_result = super().authenticate(request)
+            except (AuthenticationFailed, InvalidToken, TokenError):
+                # 公开读取请求即使携带过期令牌也继续按匿名访问。
+                return None
+            if auth_result is None:
+                return None
+
+            if TokenBlacklist.is_blacklisted(raw_token.decode()):
+                return None
+            return auth_result
 
         auth_result = super().authenticate(request)
         if auth_result is None:

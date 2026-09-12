@@ -121,15 +121,23 @@ class CommentCreateSerializer(serializers.ModelSerializer):
             except Dynamic.DoesNotExist:
                 raise serializers.ValidationError({'dynamic_id': '公开内容不存在'})
 
-            default_user, _ = User.objects.get_or_create(
-                username='guest',
-                defaults={
-                    'email': 'guest@example.com',
-                    'is_active': False,
-                    'role': 'guest'
-                }
-            )
-            validated_data['author'] = default_user
+            if getattr(self.context['request'].user, 'is_authenticated', False):
+                validated_data['author'] = self.context['request'].user
+                if not validated_data.get('nickname'):
+                    validated_data['nickname'] = (
+                        self.context['request'].user.nickname
+                        or self.context['request'].user.username
+                    )
+            else:
+                default_user, _ = User.objects.get_or_create(
+                    username='guest',
+                    defaults={
+                        'email': 'guest@example.com',
+                        'is_active': False,
+                        'role': 'guest'
+                    }
+                )
+                validated_data['author'] = default_user
             
             # 自动审核逻辑
             content = validated_data.get('content', '')
