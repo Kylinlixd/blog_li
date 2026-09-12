@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.comment.models import Comment
+from apps.comment.device import parse_client_metadata
 from apps.dynamic.models import Dynamic
 
 
@@ -137,6 +138,41 @@ class PublicCommentVisibilityTests(APITestCase):
         self.assertEqual(comment.nickname, '站点作者')
         self.assertEqual(response.data['data']['nickname'], '站点作者')
         self.assertEqual(response.data['data']['avatar'], '/media/avatars/author.png')
+
+    def test_public_comment_records_and_returns_client_system_and_browser(self):
+        user_agent = (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/150.0.0.0 Safari/537.36'
+        )
+        response = self.client.post(
+            '/api/blog/comments/',
+            {
+                'dynamic_id': self.dynamic.pk,
+                'content': '带客户端信息的评论',
+                'nickname': '匿名用户',
+            },
+            format='json',
+            HTTP_USER_AGENT=user_agent,
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        comment = Comment.objects.get(content='带客户端信息的评论')
+        self.assertEqual(comment.client_os, 'Windows 10.0')
+        self.assertEqual(comment.client_browser, 'Chrome150.0')
+        self.assertEqual(response.data['data']['client_os'], 'Windows 10.0')
+        self.assertEqual(response.data['data']['client_browser'], 'Chrome150.0')
+
+    def test_client_metadata_parser_handles_mobile_safari_and_unknown_agents(self):
+        self.assertEqual(
+            parse_client_metadata(
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) '
+                'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 '
+                'Mobile/15E148 Safari/604.1'
+            ),
+            ('iOS 18.0', 'Safari18.0'),
+        )
+        self.assertEqual(parse_client_metadata(''), ('', ''))
 
     def test_public_comment_accepts_optional_website_and_returns_it_for_approved_comments(self):
         response = self.client.post('/api/blog/comments/', {

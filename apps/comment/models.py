@@ -19,6 +19,8 @@ class Comment(models.Model):
     nickname = models.CharField(max_length=50, blank=True, help_text="评论者昵称")
     email = models.EmailField(blank=True, help_text="评论者邮箱")
     website = models.URLField(max_length=500, blank=True, default='', help_text="评论者网址")
+    client_os = models.CharField(max_length=50, blank=True, default='', help_text="评论者操作系统")
+    client_browser = models.CharField(max_length=50, blank=True, default='', help_text="评论者浏览器")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

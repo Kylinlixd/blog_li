@@ -5,6 +5,7 @@ from .models import Comment
 from apps.dynamic.models import Dynamic
 from apps.user.models import User
 from blog.request_utils import is_public_blog_request
+from .device import parse_client_metadata
 
 
 REJECTED_CONTENT_TERMS = (
@@ -33,7 +34,8 @@ class CommentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
             'email', 'avatar', 'createTime', 'status', 'parent_id',
-            'root_id', 'reply_to_nickname', 'reply_count', 'website'
+            'root_id', 'reply_to_nickname', 'reply_count', 'website',
+            'client_os', 'client_browser'
         ]
     
     def get_avatar(self, obj):
@@ -68,7 +70,8 @@ class PublicCommentSerializer(CommentSerializer):
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
             'avatar', 'createTime', 'status', 'parent_id', 'root_id',
-            'reply_to_nickname', 'reply_count', 'website'
+            'reply_to_nickname', 'reply_count', 'website',
+            'client_os', 'client_browser'
         ]
 
 class CommentCreateSerializer(serializers.ModelSerializer):
@@ -151,6 +154,11 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         else:
             validated_data['author'] = self.context['request'].user
             validated_data['status'] = 'pending'  # 后台创建的评论默认待审核
+
+        user_agent = self.context['request'].META.get('HTTP_USER_AGENT', '')
+        client_os, client_browser = parse_client_metadata(user_agent)
+        validated_data['client_os'] = client_os
+        validated_data['client_browser'] = client_browser
         
         if parent_id:
             validated_data['parent_id'] = parent_id
