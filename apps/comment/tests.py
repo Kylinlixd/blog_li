@@ -172,6 +172,14 @@ class PublicCommentVisibilityTests(APITestCase):
             ),
             ('iOS 18.0', 'Safari18.0'),
         )
+        self.assertEqual(
+            parse_client_metadata(
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) '
+                'Chrome/152.0.0.0 Safari/537.36'
+            ),
+            ('macOS', 'Chrome152.0'),
+        )
         self.assertEqual(parse_client_metadata(''), ('', ''))
 
     def test_public_comment_accepts_optional_website_and_returns_it_for_approved_comments(self):

@@ -21,8 +21,10 @@ def parse_client_metadata(user_agent):
         match = re.search(r'Android\s*([\d.]+)', ua, re.I)
         os_name = f"Android {_version(match.group(1))}" if match else 'Android'
     elif re.search(r'Mac OS X', ua, re.I):
-        match = re.search(r'Mac OS X\s*([\d_]+)', ua, re.I)
-        os_name = f"macOS {_version(match.group(1).replace('_', '.'))}" if match else 'macOS'
+        # Chrome/Safari intentionally report a compatibility value such as
+        # 10.15.7 even on newer macOS releases, so the UA version is not
+        # reliable enough to show in a public comment label.
+        os_name = 'macOS'
     elif re.search(r'Linux', ua, re.I):
         os_name = 'Linux'
     else:
