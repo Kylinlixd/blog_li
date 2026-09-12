@@ -111,6 +111,21 @@ class AuthTests(APITestCase):
         self.assertEqual(self.user.nickname, '编辑后的昵称')
         self.assertEqual(response.data['data']['email'], 'updated@example.com')
 
+    def test_authenticated_user_can_keep_a_relative_avatar_url_when_updating_profile(self):
+        self.client.force_authenticate(self.user)
+        self.user.avatar = '/media/avatars/current.png'
+        self.user.save(update_fields=['avatar'])
+
+        response = self.client.put('/api/auth/profile/', {
+            'nickname': '只改昵称',
+            'avatar': '/media/avatars/current.png',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.nickname, '只改昵称')
+        self.assertEqual(self.user.avatar, '/media/avatars/current.png')
+
     def test_authenticated_user_can_change_password(self):
         self.client.force_authenticate(self.user)
 

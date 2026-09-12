@@ -62,6 +62,11 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         return user
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    # Uploaded avatars are stored as relative /media/ paths. Django's
+    # URLField only accepts absolute URLs, which incorrectly rejects a
+    # profile update when the existing avatar is submitted unchanged.
+    avatar = serializers.CharField(required=False, allow_blank=True, max_length=200)
+
     class Meta:
         model = User
         fields = ['username', 'nickname', 'email', 'bio', 'avatar']
