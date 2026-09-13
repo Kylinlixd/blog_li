@@ -4,7 +4,7 @@ from apps.user.permissions import IsContentEditor
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q, Case, When, Value, BooleanField, Max, Subquery
+from django.db.models import Q, Case, When, Value, BooleanField, Max, Count, Subquery
 from django.db.models.functions import Coalesce
 from django.db import transaction
 from django.utils import timezone
@@ -122,8 +122,9 @@ class CommentViewSet(ModelViewSet):
 
     def _notification_payload(self, user):
         state = self._read_state(user)
-        latest_id = self._unread_queryset(user).aggregate(latest=Max('id'))['latest']
-        unread_count = self._unread_queryset(user).count()
+        aggregate = self._unread_queryset(user).aggregate(unread_count=Count('id'), latest=Max('id'))
+        latest_id = aggregate['latest']
+        unread_count = aggregate['unread_count']
         return {
             'unread_count': unread_count,
             'latest_comment_id': latest_id or state.last_seen_comment_id or 0,
@@ -153,13 +154,18 @@ class CommentViewSet(ModelViewSet):
         with transaction.atomic():
             state = self._read_state(request.user)
             previous = state.last_seen_comment_id
+            unread = self._unread_queryset(request.user)
+            # Never allow a client to skip future IDs by sending an arbitrary
+            # large cursor; cap it to the latest currently visible comment.
+            latest_visible = unread.aggregate(latest=Max('id'))['latest'] or previous
+            target_id = min(latest_id, latest_visible)
             # Capture legacy rows before advancing the cursor; after the update
             # they are intentionally no longer part of the unread queryset.
             visible_ids = set()
             if isinstance(ids, list) and ids:
-                visible_ids = set(self._unread_queryset(request.user).filter(id__in=ids).values_list('id', flat=True))
-            if latest_id > previous:
-                state.last_seen_comment_id = latest_id
+                visible_ids = set(unread.filter(id__in=ids).values_list('id', flat=True))
+            if target_id > previous:
+                state.last_seen_comment_id = target_id
                 state.initialized_at = state.initialized_at or timezone.now()
                 state.save(update_fields=['last_seen_comment_id', 'initialized_at', 'updated_at'])
             # Keep the legacy receipt for older clients/tests during the migration window.
@@ -169,7 +175,7 @@ class CommentViewSet(ModelViewSet):
                     ignore_conflicts=True,
                 )
         payload = self._notification_payload(request.user)
-        payload['marked'] = max(0, latest_id - previous) if latest_id is not None else 0
+        payload['marked'] = max(0, target_id - previous)
         return Response({'code': 200, 'message': 'success', 'data': payload})
 
     def list(self, request, *args, **kwargs):
