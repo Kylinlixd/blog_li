@@ -153,13 +153,17 @@ class CommentViewSet(ModelViewSet):
         with transaction.atomic():
             state = self._read_state(request.user)
             previous = state.last_seen_comment_id
+            # Capture legacy rows before advancing the cursor; after the update
+            # they are intentionally no longer part of the unread queryset.
+            visible_ids = set()
+            if isinstance(ids, list) and ids:
+                visible_ids = set(self._unread_queryset(request.user).filter(id__in=ids).values_list('id', flat=True))
             if latest_id > previous:
                 state.last_seen_comment_id = latest_id
                 state.initialized_at = state.initialized_at or timezone.now()
                 state.save(update_fields=['last_seen_comment_id', 'initialized_at', 'updated_at'])
             # Keep the legacy receipt for older clients/tests during the migration window.
-            if isinstance(ids, list) and ids:
-                visible_ids = set(self._unread_queryset(request.user).filter(id__in=ids).values_list('id', flat=True))
+            if visible_ids:
                 CommentReadReceipt.objects.bulk_create(
                     [CommentReadReceipt(user=request.user, comment_id=comment_id) for comment_id in visible_ids],
                     ignore_conflicts=True,
