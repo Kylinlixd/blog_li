@@ -6,7 +6,7 @@ from django.utils import timezone
 
 def seed_read_states(apps, schema_editor):
     Comment = apps.get_model('comment', 'Comment')
-    User = apps.get_model('user', 'User')
+    User = apps.get_model(*settings.AUTH_USER_MODEL.split('.'))
     State = apps.get_model('comment', 'CommentReadState')
     max_id = Comment.objects.exclude(status='rejected').order_by('-id').values_list('id', flat=True).first() or 0
     editor_filter = models.Q(role__in=['admin', 'editor', 'moderator']) | models.Q(is_staff=True) | models.Q(is_superuser=True)
