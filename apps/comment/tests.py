@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
-from apps.comment.models import Comment, CommentReadReceipt
+from apps.comment.models import Comment, CommentReadReceipt, CommentReadState
 from apps.comment.device import parse_client_metadata
 from apps.dynamic.models import Dynamic
 
@@ -296,6 +296,16 @@ class CommentNotificationTests(APITestCase):
         self.assertEqual(CommentReadReceipt.objects.filter(user=self.admin, comment=self.comment).count(), 1)
         again = self.client.post('/api/comments/mark-read/', {'ids': [self.comment.pk]}, format='json')
         self.assertEqual(again.data['data']['marked'], 0)
+
+    def test_latest_id_cursor_keeps_newer_comments_unread(self):
+        response = self.client.post('/api/comments/mark-read/', {'latest_comment_id': self.comment.pk}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        state = CommentReadState.objects.get(user=self.admin)
+        self.assertEqual(state.last_seen_comment_id, self.comment.pk)
+        newer = Comment.objects.create(author=self.author, dynamic=self.dynamic, content='后来评论', status='approved')
+        summary = self.client.get('/api/comments/unread-summary/')
+        self.assertEqual(summary.data['data']['unread_count'], 1)
+        self.assertEqual(summary.data['data']['latest_comment_id'], newer.pk)
 
     def test_unread_list_is_scoped_to_current_user_and_marks_rows(self):
         response = self.client.get('/api/comments/?unread=1')

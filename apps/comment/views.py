@@ -4,12 +4,14 @@ from apps.user.permissions import IsContentEditor
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q, Exists, OuterRef, Case, When, Value, BooleanField
+from django.db.models import Q, Case, When, Value, BooleanField, Max, Subquery
+from django.db.models.functions import Coalesce
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle
-from .models import Comment, CommentReadReceipt
+from .models import Comment, CommentReadReceipt, CommentReadState
 from .serializers import (
     CommentSerializer, CommentCreateSerializer,
     CommentUpdateSerializer, PublicCommentSerializer
@@ -79,15 +81,17 @@ class CommentViewSet(ModelViewSet):
             status = self.request.query_params.get('status')
             if status:
                 queryset = queryset.filter(status=status)
-            receipt = CommentReadReceipt.objects.filter(user=self.request.user, comment_id=OuterRef('pk'))
+            state = CommentReadState.objects.filter(user=self.request.user).values('last_seen_comment_id')[:1]
+            seen_id = Coalesce(Subquery(state), Value(0))
             queryset = queryset.annotate(is_unread=Case(
                 When(author=self.request.user, then=Value(False)),
                 When(status='rejected', then=Value(False)),
-                default=~Exists(receipt),
+                When(id__gt=seen_id, then=Value(True)),
+                default=Value(False),
                 output_field=BooleanField(),
             ))
             if self.request.query_params.get('unread') == '1':
-                queryset = queryset.filter(is_unread=True).exclude(status='rejected').exclude(author=self.request.user)
+                queryset = queryset.filter(is_unread=True)
     
         # 过滤条件
         dynamic_id = self.request.query_params.get('dynamic_id')
@@ -104,31 +108,66 @@ class CommentViewSet(ModelViewSet):
     
         return queryset
 
+    def _read_state(self, user):
+        state, _ = CommentReadState.objects.get_or_create(user=user, defaults={'last_seen_comment_id': 0})
+        return state
+
     def _unread_queryset(self, user):
-        receipt = CommentReadReceipt.objects.filter(user=user, comment_id=OuterRef('pk'))
-        return Comment.objects.select_related('author', 'dynamic').annotate(
-            is_unread=~Exists(receipt)
-        ).filter(is_unread=True).exclude(author=user).exclude(status='rejected')
+        state = CommentReadState.objects.filter(user=user).values('last_seen_comment_id')[:1]
+        seen_id = Coalesce(Subquery(state), Value(0))
+        return Comment.objects.select_related('author', 'dynamic').filter(
+            id__gt=seen_id,
+            status__in=['pending', 'approved'],
+        ).exclude(author=user)
+
+    def _notification_payload(self, user):
+        state = self._read_state(user)
+        latest_id = self._unread_queryset(user).aggregate(latest=Max('id'))['latest']
+        unread_count = self._unread_queryset(user).count()
+        return {
+            'unread_count': unread_count,
+            'latest_comment_id': latest_id or state.last_seen_comment_id or 0,
+            'last_seen_comment_id': state.last_seen_comment_id,
+            'initialized': bool(state.initialized_at),
+        }
 
     @action(detail=False, methods=['get'], url_path='unread-summary')
     def unread_summary(self, request):
-        unread_count = self._unread_queryset(request.user).count()
-        return Response({'code': 200, 'message': 'success', 'data': {'unread_count': unread_count}})
+        return Response({'code': 200, 'message': 'success', 'data': self._notification_payload(request.user)})
 
     @action(detail=False, methods=['post'], url_path='mark-read')
     def mark_read(self, request):
+        latest_id = request.data.get('latest_comment_id')
         ids = request.data.get('ids', [])
-        if not isinstance(ids, list) or len(ids) > 100:
-            return Response({'code': 400, 'message': 'ids 必须是最多 100 个评论 ID 的数组'}, status=status.HTTP_400_BAD_REQUEST)
-        visible_ids = set(self._unread_queryset(request.user).filter(id__in=ids).values_list('id', flat=True))
-        now = timezone.now()
-        CommentReadReceipt.objects.bulk_create(
-            [CommentReadReceipt(user=request.user, comment_id=comment_id, read_at=now) for comment_id in visible_ids],
-            ignore_conflicts=True,
-        )
-        unread_count = self._unread_queryset(request.user).count()
-        return Response({'code': 200, 'message': 'success', 'data': {'marked': len(visible_ids), 'unread_count': unread_count}})
-    
+        if latest_id is None:
+            if not isinstance(ids, list) or len(ids) > 100:
+                return Response({'code': 400, 'message': 'ids 必须是最多 100 个评论 ID 的数组'}, status=status.HTTP_400_BAD_REQUEST)
+            latest_id = max([int(value) for value in ids if str(value).isdigit()] or [0])
+        try:
+            latest_id = int(latest_id)
+        except (TypeError, ValueError):
+            return Response({'code': 400, 'message': 'latest_comment_id 必须是数字'}, status=status.HTTP_400_BAD_REQUEST)
+        if latest_id < 0:
+            return Response({'code': 400, 'message': 'latest_comment_id 不能为负数'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            state = self._read_state(request.user)
+            previous = state.last_seen_comment_id
+            if latest_id > previous:
+                state.last_seen_comment_id = latest_id
+                state.initialized_at = state.initialized_at or timezone.now()
+                state.save(update_fields=['last_seen_comment_id', 'initialized_at', 'updated_at'])
+            # Keep the legacy receipt for older clients/tests during the migration window.
+            if isinstance(ids, list) and ids:
+                visible_ids = set(self._unread_queryset(request.user).filter(id__in=ids).values_list('id', flat=True))
+                CommentReadReceipt.objects.bulk_create(
+                    [CommentReadReceipt(user=request.user, comment_id=comment_id) for comment_id in visible_ids],
+                    ignore_conflicts=True,
+                )
+        payload = self._notification_payload(request.user)
+        payload['marked'] = max(0, latest_id - previous) if latest_id is not None else 0
+        return Response({'code': 200, 'message': 'success', 'data': payload})
+
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)

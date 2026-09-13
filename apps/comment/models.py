@@ -34,6 +34,16 @@ class Comment(models.Model):
         return f"{self.nickname or self.author.username}'s comment on {self.dynamic}"
 
 
+class CommentReadState(models.Model):
+    """Monotonic per-admin cursor for comments visible to that account."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='comment_read_state')
+    last_seen_comment_id = models.PositiveBigIntegerField(default=0)
+    initialized_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'comment_read_state'
+
 class CommentReadReceipt(models.Model):
     """Per-admin read marker; absence means the comment is unread."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comment_read_receipts')
