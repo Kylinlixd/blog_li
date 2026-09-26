@@ -17,7 +17,8 @@ from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q
+from django.db.models import Q, Count, Sum, Value
+from django.db.models.functions import Coalesce
 from .models import UploadFile, FileCategory, FileTag
 from .serializers import (
     UploadFileSerializer, FileUploadSerializer,
@@ -151,6 +152,47 @@ class FileManagementViewSet(ModelViewSet):
         file_obj = self.get_object()
         return _pdf_preview_response(file_obj)
     
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """汇总当前筛选条件下的全部文件，而不是当前页。
+
+        列表接口是分页的，前端如果对当页数据求和在翻页前只能看到当页容量，
+        因此容量类指标必须由后端聚合。筛选条件与 search 保持一致。
+        """
+        queryset = self.get_queryset()
+
+        query = request.query_params.get('q', '')
+        if query:
+            queryset = queryset.filter(
+                Q(name__icontains=query) |
+                Q(description__icontains=query)
+            )
+
+        file_type = request.query_params.get('type')
+        if file_type:
+            queryset = queryset.filter(file_type=file_type)
+
+        category_id = request.query_params.get('category')
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+
+        tag_ids = request.query_params.getlist('tags')
+        if tag_ids:
+            queryset = queryset.filter(tags__id__in=tag_ids).distinct()
+
+        aggregate = queryset.aggregate(
+            total_bytes=Coalesce(Sum('file_size'), Value(0)),
+            total_records=Count('id'),
+        )
+        return Response({
+            'code': 200,
+            'data': {
+                'total': aggregate['total_records'],
+                'totalBytes': aggregate['total_bytes'],
+            },
+            'message': '汇总成功'
+        })
+
     @action(detail=False, methods=['get'])
     def search(self, request):
         """搜索文件"""
