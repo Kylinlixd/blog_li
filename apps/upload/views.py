@@ -17,6 +17,7 @@ from rest_framework import status
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from blog.pagination import StandardPagination
 from django.db.models import Q, Count, Sum, Value
 from django.db.models.functions import Coalesce
 from .models import UploadFile, FileCategory, FileTag
@@ -64,6 +65,7 @@ class FileCategoryViewSet(ModelViewSet):
     queryset = FileCategory.objects.all()
     serializer_class = FileCategorySerializer
     permission_classes = [IsContentEditor]
+    pagination_class = StandardPagination
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -74,6 +76,7 @@ class FileTagViewSet(ModelViewSet):
     queryset = FileTag.objects.all()
     serializer_class = FileTagSerializer
     permission_classes = [IsContentEditor]
+    pagination_class = StandardPagination
     
     def get_queryset(self):
         queryset = super().get_queryset()

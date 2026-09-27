@@ -152,6 +152,21 @@ if env_bool('DJANGO_SQL_LOGGING', False):
         'propagate': False,
     }
 
+# 缓存：默认的 LocMemCache 是每进程一份，2 个 gunicorn worker 会让
+# 限流与「同一 IP 一天只计一次浏览」各算一份；文件缓存让两个 worker 共享。
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        # 可用 DJANGO_CACHE_DIR 覆盖（本地开发 / 容器里指向可写目录）
+        'LOCATION': os.getenv('DJANGO_CACHE_DIR') or BASE_DIR / '.cache',
+        'TIMEOUT': 300,
+        'OPTIONS': {
+            'MAX_ENTRIES': 10000,
+        },
+    }
+}
+
+
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
@@ -242,6 +257,10 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'login': '10/minute',
         'public_comment': '10/minute',
+        # 公开写接口原本完全无限速：匿名脚本可以无限刷点赞/浏览
+        'public_like': '30/minute',
+        'public_view': '120/minute',
+        'public_search': '60/minute',
     },
     'EXCEPTION_HANDLER': 'blog.exception_handler.custom_exception_handler',
 }

@@ -22,6 +22,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.throttling import ScopedRateThrottle
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from apps.category.models import Category
@@ -102,6 +103,13 @@ class DynamicViewSet(ModelViewSet):
             return [AllowAny()]
         return super().get_permissions()
     
+    def get_throttles(self):
+        # 公开点赞 / 浏览量都是匿名可写的，按 IP 限速，避免被脚本无限刷
+        if self.action in ('like', 'view'):
+            self.throttle_scope = 'public_like' if self.action == 'like' else 'public_view'
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         queryset = super().get_queryset().annotate(comments_count=Count('comments', distinct=True))
         
@@ -664,6 +672,11 @@ class DynamicListView(APIView):
 
 class SearchView(APIView):
     permission_classes = [AllowAny]
+
+    def get_throttles(self):
+        # 搜索要扫全表做 icontains，公开且开销大，按 IP 限流
+        self.throttle_scope = 'public_search'
+        return [ScopedRateThrottle()]
     pagination_class = DynamicPagination
     
     def get(self, request):

@@ -7,12 +7,25 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {
+    'audio': {'mp3', 'wav', 'ogg', 'oga', 'm4a', 'aac', 'flac'},
     'image': {'jpg', 'jpeg', 'png', 'gif', 'heic', 'heif'},
     'video': {'mp4', 'mov', 'm4v', 'avi', 'webm', 'hevc'},
     'document': {'pdf', 'doc', 'docx', 'xls', 'xlsx'},
 }
 
 ALLOWED_MIME_TYPES = {
+    'audio': {
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/wav',
+        'audio/x-wav',
+        'audio/ogg',
+        'audio/mp4',
+        'audio/x-m4a',
+        'audio/aac',
+        'audio/flac',
+        'audio/x-flac',
+    },
     'image': {'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/heic', 'image/heif'},
     'video': {'video/mp4', 'video/quicktime', 'video/x-m4v', 'video/x-msvideo', 'video/webm', 'video/hevc'},
     'document': {
@@ -47,6 +60,17 @@ def _has_expected_signature(extension, header):
         return True
     if extension in {'mp4', 'mov', 'm4v'}:
         return len(header) >= 8 and header[4:8] == b'ftyp'
+    if extension == 'mp3':
+        return header.startswith(b'ID3') or header[:2] in (b'\xff\xfb', b'\xff\xf3', b'\xff\xf2')
+    if extension == 'wav':
+        return header.startswith(b'RIFF') and header[8:12] == b'WAVE'
+    if extension in {'ogg', 'oga'}:
+        return header.startswith(b'OggS')
+    if extension in {'m4a', 'aac'}:
+        # m4a 是 ISO-BMFF；裸 aac 可能是 ADTS（\xff\xf1/\xff\xf9）
+        return (len(header) >= 8 and header[4:8] == b'ftyp') or header[:2] in (b'\xff\xf1', b'\xff\xf9')
+    if extension == 'flac':
+        return header.startswith(b'fLaC')
     if extension in {'docx', 'xlsx'}:
         return header.startswith(b'PK\x03\x04')
     if extension in {'doc', 'xls'}:

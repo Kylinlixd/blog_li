@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.throttling import ScopedRateThrottle
+from blog.pagination import StandardPagination
 from rest_framework.views import APIView
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    pagination_class = StandardPagination
     permission_classes = [IsAuthenticated]
     authentication_classes = [CustomJWTAuthentication]
 

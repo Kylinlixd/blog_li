@@ -1,6 +1,8 @@
 from rest_framework.viewsets import ModelViewSet, ViewSet
 from rest_framework.permissions import AllowAny
 from apps.user.permissions import IsContentEditor
+from blog.pagination import StandardPagination
+
 from .models import Category
 from .serializers import CategorySerializer, SimpleCategorySerializer
 from rest_framework.response import Response
@@ -10,6 +12,7 @@ class CategoryViewSet(ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsContentEditor]
+    pagination_class = StandardPagination
 
     def list(self, request, *args, **kwargs):
         # 获取搜索参数
