@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import models
+from django.db.models import F
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -104,9 +105,11 @@ class UploadFile(models.Model):
         return self.name
 
     def increase_download_count(self):
-        """增加下载次数"""
+        """增加下载次数（原子自增，避免并发下丢更新）"""
+        type(self).objects.filter(pk=self.pk).update(
+            download_count=F('download_count') + 1
+        )
         self.download_count += 1
-        self.save(update_fields=['download_count'])
 
     def save(self, *args, **kwargs):
         if not self.public_token:

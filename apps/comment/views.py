@@ -4,6 +4,7 @@ from apps.user.permissions import IsContentEditor
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import ValidationError
 from django.db.models import Q, Case, When, Value, BooleanField, Max, Count, Subquery
 from django.db.models.functions import Coalesce
 from django.db import transaction
@@ -281,8 +282,14 @@ class BlogCommentView(APIView):
         thread_mode = request.query_params.get('thread') == '1'
         if thread_mode:
             root_queryset = queryset.filter(parent__isnull=True).order_by('-created_at', '-id')
-            page_size = min(max(int(request.query_params.get('pageSize', 10)), 1), 50)
-            page = max(int(request.query_params.get('page', 1)), 1)
+            try:
+                page_size = int(request.query_params.get('pageSize', 10))
+                page = int(request.query_params.get('page', 1))
+            except (TypeError, ValueError) as exc:
+                # 手工解析必须自己兜住：否则 pageSize=abc 会变成 500
+                raise ValidationError({'page': 'page 与 pageSize 必须是整数'}) from exc
+            page_size = min(max(page_size, 1), 50)
+            page = max(page, 1)
             start = (page - 1) * page_size
             roots = list(root_queryset[start:start + page_size])
             payload = []

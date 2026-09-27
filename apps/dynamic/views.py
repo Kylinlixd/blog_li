@@ -4,6 +4,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from apps.dynamic.models import Dynamic
+from apps.upload.models import UploadFile
 from rest_framework.permissions import AllowAny
 from apps.user.permissions import IsContentEditor
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
@@ -20,7 +21,7 @@ from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from rest_framework.views import APIView
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from apps.category.models import Category
@@ -83,8 +84,13 @@ class DynamicPagination(PageNumberPagination):
         })
 
 
+def _file_prefetch():
+    """按 pk 预取文件：序列化器依赖 prefetch 缓存，缺了排序就会退化成每行重查。"""
+    return Prefetch('files', queryset=UploadFile.objects.order_by('pk'))
+
+
 class DynamicViewSet(ModelViewSet):
-    queryset = Dynamic.objects.select_related('author', 'category').prefetch_related('tags', 'files')
+    queryset = Dynamic.objects.select_related('author', 'category').prefetch_related('tags', _file_prefetch())
     pagination_class = DynamicPagination
     permission_classes = [IsContentEditor]
     
@@ -463,7 +469,7 @@ class DynamicViewSet(ModelViewSet):
 
 
 class HotDynamicsView(ReadOnlyModelViewSet):
-    queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', 'files', 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-view_count')
+    queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', _file_prefetch(), 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-view_count')
     serializer_class = PublicDynamicListSerializer
     permission_classes = []
     
@@ -479,7 +485,7 @@ class HotDynamicsView(ReadOnlyModelViewSet):
 
 
 class RecentDynamicsView(ReadOnlyModelViewSet):
-    queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', 'files', 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-created_at')
+    queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', _file_prefetch(), 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-created_at')
     serializer_class = PublicDynamicListSerializer
     permission_classes = []
     
@@ -507,7 +513,7 @@ class CategoryDynamicsView(APIView):
             dynamics = Dynamic.objects.filter(
                 category=category,
                 status='published'
-            ).select_related('category').prefetch_related('tags', 'files', 'comments').annotate(
+            ).select_related('category').prefetch_related('tags', _file_prefetch(), 'comments').annotate(
                 comments_count=Count('comments', distinct=True)
             ).order_by('-created_at')
             
@@ -537,6 +543,9 @@ class CategoryDynamicsView(APIView):
                 'code': 404,
                 'message': '分类不存在'
             }, status=status.HTTP_404_NOT_FOUND)
+        except APIException:
+            # 分页越界等 DRF 异常交给框架渲染成 404/400，不要吞成 500
+            raise
         except Exception:
             logger.exception('Category dynamics request failed')
             return Response({
@@ -558,7 +567,7 @@ class TagDynamicsView(APIView):
             dynamics = Dynamic.objects.filter(
                 tags=tag,
                 status='published'
-            ).select_related('category').prefetch_related('tags', 'files', 'comments').annotate(
+            ).select_related('category').prefetch_related('tags', _file_prefetch(), 'comments').annotate(
                 comments_count=Count('comments', distinct=True)
             ).order_by('-created_at')
             
@@ -590,6 +599,9 @@ class TagDynamicsView(APIView):
                 'code': 404,
                 'message': '标签不存在'
             }, status=status.HTTP_404_NOT_FOUND)
+        except APIException:
+            # 分页越界等 DRF 异常交给框架渲染成 404/400，不要吞成 500
+            raise
         except Exception:
             logger.exception('Tag dynamics request failed')
             return Response({
@@ -791,6 +803,9 @@ class SearchView(APIView):
                 }
             })
             
+        except APIException:
+            # page/pageSize 越界等校验异常应由 DRF 返回 400，而不是 500
+            raise
         except Exception:
             logger.exception('Search request failed')
             return Response({

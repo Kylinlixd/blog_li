@@ -143,7 +143,11 @@ class FileManagementViewSet(ModelViewSet):
         response = _file_response(file_obj, as_attachment=True)
         if isinstance(response, Response):
             return response
-        file_obj.increase_download_count()
+        try:
+            file_obj.increase_download_count()
+        except Exception:
+            # 计数写库失败不应该影响出图
+            logger.warning('增加下载次数失败 file=%s', file_obj.pk, exc_info=True)
         return response
 
     @action(detail=True, methods=['get'])
@@ -446,7 +450,11 @@ class PublicFileDownloadView(APIView):
         response = _file_response(file_obj, as_attachment=False)
         if isinstance(response, Response):
             return response
-        file_obj.increase_download_count()
+        try:
+            file_obj.increase_download_count()
+        except Exception:
+            # 计数写库失败不应该影响出图
+            logger.warning('增加下载次数失败 file=%s', file_obj.pk, exc_info=True)
         return response
 
 

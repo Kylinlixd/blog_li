@@ -5,6 +5,7 @@ from django.urls import resolve
 from django.core.exceptions import PermissionDenied, ObjectDoesNotExist
 from django.db import IntegrityError
 from django.conf import settings
+import logging
 import traceback
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 import uuid
@@ -12,6 +13,8 @@ from django.core.cache import cache
 from django.utils import timezone
 from django.db import close_old_connections
 from blog.request_utils import get_client_ip
+
+logger = logging.getLogger(__name__)
 
 
 class IpSecurityMiddleware(MiddlewareMixin):
@@ -148,6 +151,7 @@ class APIExceptionMiddleware(MiddlewareMixin):
             }
             
         elif isinstance(exception, IntegrityError):
+            logger.warning('数据完整性错误 %s %s: %s', request.method, request.path, exception)
             response_data = {
                 'code': status.HTTP_400_BAD_REQUEST,
                 'message': '数据完整性错误，可能存在重复数据',
@@ -155,7 +159,15 @@ class APIExceptionMiddleware(MiddlewareMixin):
             }
             
         else:
-            # 其他未处理的异常
+            # 其他未处理的异常：必须落日志，否则 500 在生产环境完全无痕
+            logger.error(
+                '未处理异常 %s %s requestId=%s: %s',
+                request.method,
+                request.path,
+                getattr(request, 'request_id', None),
+                exception,
+                exc_info=exception,
+            )
             response_data = {
                 'code': status.HTTP_500_INTERNAL_SERVER_ERROR,
                 'message': '服务器内部错误',

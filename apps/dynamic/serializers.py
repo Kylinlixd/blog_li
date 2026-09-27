@@ -47,8 +47,20 @@ def _media_urls(obj):
     return media
 
 
+def _obj_files(obj):
+    """取对象文件列表。
+
+    优先使用 prefetch 缓存：带 order_by 的查询会绕过 prefetch 再查一次库，
+    每个序列化字段各查一次就变成每行数条额外 SQL。视图层已按 pk 预取。
+    """
+    cache = getattr(obj, "_prefetched_objects_cache", None)
+    if cache and "files" in cache:
+        return cache["files"]
+    return obj.files.all().order_by("pk")
+
+
 def _file_preview(obj, limit):
-    return list(obj.files.all().order_by("pk"))[:limit]
+    return list(_obj_files(obj))[:limit]
 
 
 def _first_media_urls(obj, limit):
@@ -81,7 +93,7 @@ def _first_media_urls(obj, limit):
 
 
 def _media_count(obj):
-    files = list(obj.files.all().order_by("pk"))
+    files = list(_obj_files(obj))
     file_urls = {file.file_url for file in files}
     return len(files) + sum(1 for url in obj.media_urls if url not in file_urls)
 
@@ -335,8 +347,11 @@ class DynamicListSerializer(serializers.ModelSerializer):
         ]
     
     def get_comments(self, obj):
-        # 获取评论数量
-        return getattr(obj, 'comments_count', obj.comments.count() if hasattr(obj, 'comments') else 0)
+        # 注解优先；getattr 的默认值是急切求值的，写成 obj.comments.count() 会让每行都多查一次
+        count = getattr(obj, 'comments_count', None)
+        if count is not None:
+            return count
+        return obj.comments.count() if hasattr(obj, 'comments') else 0
         
     def get_mediaUrls(self, obj):
         return _media_urls(obj)
@@ -380,8 +395,8 @@ class PublicDynamicListSerializer(serializers.ModelSerializer):
         return _media_count(obj)
 
     def get_comments(self, obj):
-        return getattr(
-            obj,
-            "comments_count",
-            obj.comments.count() if hasattr(obj, "comments") else 0,
-        )
+        # 注解优先，避免 getattr 默认值被急切求值导致每行多一次 COUNT
+        count = getattr(obj, "comments_count", None)
+        if count is not None:
+            return count
+        return obj.comments.count() if hasattr(obj, "comments") else 0
