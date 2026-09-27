@@ -100,6 +100,11 @@ class UploadFile(models.Model):
         ordering = ['-created_at']
         verbose_name = '上传文件'
         verbose_name_plural = verbose_name
+        indexes = [
+            # 文件列表默认按时间倒序，且常带 file_type 过滤
+            models.Index(fields=['-created_at'], name='upload_created_idx'),
+            models.Index(fields=['file_type', '-created_at'], name='upload_type_created_idx'),
+        ]
 
     def __str__(self):
         return self.name

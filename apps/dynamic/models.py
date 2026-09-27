@@ -40,6 +40,11 @@ class Dynamic(models.Model):
         indexes = [
             models.Index(fields=['type', 'status']),
             models.Index(fields=['created_at']),
+            # 公开列表/搜索的主查询是 status='published' + 按时间倒序，
+            # 原有 ['type','status'] 首列用不上，等于没索引。
+            models.Index(fields=['status', '-created_at'], name='dynamic_status_created_idx'),
+            # 热门列表：status 过滤 + view_count 倒序
+            models.Index(fields=['status', '-view_count'], name='dynamic_status_views_idx'),
         ]
     
     def __str__(self):

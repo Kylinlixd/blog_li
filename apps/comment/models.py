@@ -29,6 +29,10 @@ class Comment(models.Model):
         ordering = ['-created_at']
         verbose_name = '评论'
         verbose_name_plural = verbose_name
+        indexes = [
+            # 公开评论列表：按 dynamic_id + status='approved' 过滤，再按时间倒序
+            models.Index(fields=['dynamic', 'status', '-created_at'], name='comment_dyn_status_idx'),
+        ]
     
     def __str__(self):
         return f"{self.nickname or self.author.username}'s comment on {self.dynamic}"

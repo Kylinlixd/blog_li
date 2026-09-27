@@ -713,7 +713,7 @@ class SearchView(APIView):
                     'id': dynamic.id,
                     'type': 'dynamic',
                     'title': dynamic.title,
-                    'content': dynamic.content,
+                    # 不再返回全文：搜索页只渲染 excerpt，pageSize=10 时整包从约 70KB 降到几 KB
                     'excerpt': dynamic.content[:200] + '...' if len(dynamic.content) > 200 else dynamic.content,
                     'createdAt': dynamic.created_at,
                     'updatedAt': dynamic.updated_at,
