@@ -189,7 +189,7 @@ class CommentViewSet(ModelViewSet):
             'code': 200,
             'message': 'success',
             'data': {
-                'list': serializer.data,
+                'items': serializer.data,
                 'total': queryset.count(),
                 'page': 1,
                 'pageSize': self.pagination_class.page_size
@@ -303,7 +303,7 @@ class BlogCommentView(APIView):
                 'code': 200,
                 'message': 'success',
                 'data': {
-                    'list': payload,
+                    'items': payload,
                     'total': total,
                     'commentTotal': queryset.count(),
                     'page': page,
@@ -316,7 +316,7 @@ class BlogCommentView(APIView):
             'code': 200,
             'message': 'success',
             'data': {
-                'list': serializer.data,
+                'items': serializer.data,
                 'total': queryset.count(),
                 'page': 1,
                 'pageSize': queryset.count(),

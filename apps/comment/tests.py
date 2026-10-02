@@ -37,8 +37,8 @@ class PublicCommentVisibilityTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['total'], 1)
-        self.assertEqual(response.data['data']['list'][0]['content'], '公开评论')
-        self.assertNotIn('email', response.data['data']['list'][0])
+        self.assertEqual(response.data['data']['items'][0]['content'], '公开评论')
+        self.assertNotIn('email', response.data['data']['items'][0])
 
     def test_thread_mode_returns_replies_without_exposing_email(self):
         root = Comment.objects.create(
@@ -63,7 +63,7 @@ class PublicCommentVisibilityTests(APITestCase):
         })
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        item = next(row for row in response.data['data']['list'] if row['content'] == '根评论')
+        item = next(row for row in response.data['data']['items'] if row['content'] == '根评论')
         self.assertEqual(item['reply_count'], 1)
         self.assertEqual(item['replies_preview'][0]['reply_to_nickname'], '夕月')
         self.assertNotIn('email', item['replies_preview'][0])
@@ -194,7 +194,7 @@ class PublicCommentVisibilityTests(APITestCase):
         comment = Comment.objects.get(content='带主页的评论')
         self.assertEqual(comment.website, 'https://example.com/profile')
         listed = self.client.get('/api/blog/comments/', {'dynamic_id': self.dynamic.pk})
-        item = next(row for row in listed.data['data']['list'] if row['content'] == '带主页的评论')
+        item = next(row for row in listed.data['data']['items'] if row['content'] == '带主页的评论')
         self.assertEqual(item['website'], 'https://example.com/profile')
 
     def test_api_blog_prefix_allows_anonymous_comment_submission(self):

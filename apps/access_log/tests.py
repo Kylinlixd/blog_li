@@ -333,7 +333,7 @@ class AccessLogSecurityApiTests(APITestCase):
         blocked = self.client.get('/api/access-logs/', {'securityGroup': 'blocked', 'window': '7d'})
         self.assertEqual(blocked.status_code, status.HTTP_200_OK)
         self.assertEqual(blocked.data['data']['total'], 1)
-        self.assertEqual(blocked.data['data']['list'][0]['security_action'], 'blocked')
+        self.assertEqual(blocked.data['data']['items'][0]['security_action'], 'blocked')
 
     def test_invalid_profile_window_and_security_group_return_bad_request(self):
         self.client.force_authenticate(self.user)

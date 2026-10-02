@@ -23,7 +23,7 @@ class AccessLogPagination(PageNumberPagination):
 
     def get_paginated_response(self, data):
         from rest_framework.response import Response
-        return Response({'code': 200, 'message': 'success', 'data': {'list': data, 'total': self.page.paginator.count, 'page': self.page.number, 'pageSize': self.page_size}})
+        return Response({'code': 200, 'message': 'success', 'data': {'items': data, 'total': self.page.paginator.count}})
 
 
 class AccessLogViewSet(ReadOnlyModelViewSet):
