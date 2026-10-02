@@ -93,7 +93,18 @@ Content-Type: application/json
 
 公开评论列表不会暴露待审核或已拒绝内容；评论提交响应仍会返回本次提交结果。阅读量仅由明确的 `PUT /view/` 请求增加，重复读取详情不会产生副作用。管理端分类、标签和评论接口均要求登录。
 
-内容分页响应：
+## SEO
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/sitemap.xml` | 站点地图：静态页 + 已发布文章 + 标签 + 分类（15 分钟缓存） |
+| GET | `/feed.xml` | RSS 2.0，最近 20 篇已发布文章 |
+| GET | `/robots.txt` | 爬虫规则，指向 sitemap |
+
+域名由环境变量 `PUBLIC_SITE_URL` 配置（默认线上域名）。nginx 需对这三条路径精确转发到 Django（见前端仓库 `ops/nginx/myblog-admin.conf`）。
+
+内容分页响应（2026-10 起全部接口统一为此形状，含分类、标签、评论、
+文件与访问日志；分类/标签动态流为 `data: {category|tag, total, items}`）：
 
 ```json
 {
@@ -102,6 +113,13 @@ Content-Type: application/json
   "data": {"total": 1, "items": []}
 }
 ```
+
+例外：`/api/blog/dynamics/timeline/|hot/|recent/` 与 `/api/access-log-rules/`
+返回裸数组；`/api/access-logs/profiles/` 为 `{list, summary, total, …}`。
+
+字段命名统一 snake_case（`created_at`、`dynamic_count`、`media_urls`…）。
+写接口仍接受既有的 camelCase 请求字段（`mediaUrls`、`categoryId`、`fileIds`、`tags`）。
+分页参数统一为 `page` / `pageSize`（上限 100）。
 
 ## 文件
 
