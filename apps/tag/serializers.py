@@ -3,14 +3,11 @@ from .models import Tag
 from django.db.models import Count
 
 class TagSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-    dynamicCount = serializers.SerializerMethodField()
-    useCount = serializers.SerializerMethodField()
-    
+    dynamic_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Tag
-        fields = ['id', 'name', 'description', 'sort', 'status', 'dynamicCount', 'useCount', 'createdAt', 'updatedAt']
+        fields = ['id', 'name', 'description', 'sort', 'status', 'dynamic_count', 'created_at', 'updated_at']
         extra_kwargs = {
             'name': {'required': True, 'allow_blank': False},
             'description': {'required': False},
@@ -18,14 +15,11 @@ class TagSerializer(serializers.ModelSerializer):
             'status': {'required': False}
         } 
         
-    def get_dynamicCount(self, obj):
+    def get_dynamic_count(self, obj):
         # 获取使用该标签的动态数量
         if hasattr(obj, 'dynamic_count'):
             return obj.dynamic_count
         return obj.dynamics.count()
-
-    def get_useCount(self, obj):
-        return self.get_dynamicCount(obj)
 
 class TagCreateSerializer(serializers.ModelSerializer):
     class Meta:

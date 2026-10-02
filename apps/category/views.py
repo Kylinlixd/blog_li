@@ -5,6 +5,7 @@ from blog.pagination import StandardPagination
 
 from .models import Category
 from .serializers import CategorySerializer, SimpleCategorySerializer
+from rest_framework import status
 from rest_framework.response import Response
 from django.db.models import Count, Q
 
@@ -72,7 +73,8 @@ class CategoryViewSet(ModelViewSet):
         self.perform_update(serializer)
         return Response({
             'code': 200,
-            'message': '更新分类成功'
+            'message': '更新分类成功',
+            'data': None
         })
         
     def destroy(self, request, *args, **kwargs):
@@ -81,8 +83,9 @@ class CategoryViewSet(ModelViewSet):
         if hasattr(instance, 'dynamics') and instance.dynamics.exists():
             return Response({
                 'code': 400,
-                'message': '该分类下有动态，不能删除'
-            })
+                'message': '该分类下有动态，不能删除',
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
         self.perform_destroy(instance)
         return Response({
             'code': 200,
@@ -105,7 +108,10 @@ class BlogCategoriesView(ViewSet):
         response = Response({
             'code': 200,
             'message': 'success',
-            'data': serializer.data
+            'data': {
+                'total': len(serializer.data),
+                'items': serializer.data
+            }
         })
         # 添加缓存控制头
         response['Cache-Control'] = 'no-cache, no-store, must-revalidate'

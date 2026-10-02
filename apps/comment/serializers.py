@@ -21,7 +21,6 @@ REVIEW_CONTENT_TERMS = (
 
 class CommentSerializer(serializers.ModelSerializer):
     dynamic_id = serializers.IntegerField(source='dynamic.id')
-    createTime = serializers.DateTimeField(source='created_at')
     avatar = serializers.SerializerMethodField()
     content = serializers.SerializerMethodField()
     parent_id = serializers.IntegerField(read_only=True)
@@ -34,7 +33,7 @@ class CommentSerializer(serializers.ModelSerializer):
         model = Comment
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
-            'email', 'avatar', 'createTime', 'status', 'parent_id',
+            'email', 'avatar', 'created_at', 'status', 'parent_id',
             'root_id', 'reply_to_nickname', 'reply_count', 'is_unread', 'website',
             'client_os', 'client_browser'
         ]
@@ -73,7 +72,7 @@ class PublicCommentSerializer(CommentSerializer):
     class Meta(CommentSerializer.Meta):
         fields = [
             'id', 'dynamic_id', 'content', 'nickname',
-            'avatar', 'createTime', 'status', 'parent_id', 'root_id',
+            'avatar', 'created_at', 'status', 'parent_id', 'root_id',
             'reply_to_nickname', 'reply_count', 'website',
             'client_os', 'client_browser'
         ]

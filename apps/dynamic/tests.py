@@ -148,7 +148,7 @@ class DynamicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['type'], 'video')
         self.assertEqual(response.data['data']['status'], 'published')
-        self.assertEqual(response.data['data']['mediaUrls'], [{
+        self.assertEqual(response.data['data']['media_urls'], [{
             'url': '/api/files/public/48/',
             'type': 'video',
         }])
@@ -168,7 +168,7 @@ class DynamicAPITests(APITestCase):
 
         response = self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
 
-        media_by_url = {item['url']: item for item in response.data['data']['mediaUrls']}
+        media_by_url = {item['url']: item for item in response.data['data']['media_urls']}
         self.assertEqual(media_by_url[image.file_url], {
             'id': image.pk, 'url': image.file_url, 'type': 'image', 'name': image.name, 'size': image.file_size, 'poster_url': '',
         })
@@ -191,7 +191,7 @@ class DynamicAPITests(APITestCase):
         response = self.client.get(f'/api/blog/dynamics/{self.published.pk}/')
 
         self.assertEqual(
-            [item['id'] for item in response.data['data']['mediaUrls']],
+            [item['id'] for item in response.data['data']['media_urls']],
             [image.pk, audio.pk],
         )
 
@@ -304,7 +304,7 @@ class DynamicAPITests(APITestCase):
         simple_data = SimpleDynamicSerializer(image).data
 
         self.assertEqual(admin_data['images'], image.media_urls)
-        self.assertEqual(simple_data['mediaUrls'], image.media_urls)
+        self.assertEqual(simple_data['media_urls'], image.media_urls)
 
     def test_update_preserves_category_tags_and_media(self):
         self.client.force_authenticate(self.user)

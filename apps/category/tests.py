@@ -17,8 +17,8 @@ class CategoryPermissionTests(APITestCase):
         response = self.client.get('/api/blog/categories/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['data'][0]['name'], '工程实践')
-        self.assertEqual(response.data['data'][0]['status'], 'active')
+        self.assertEqual(response.data['data']['items'][0]['name'], '工程实践')
+        self.assertEqual(response.data['data']['items'][0]['status'], 'active')
 
     def test_inactive_categories_are_hidden_from_public_list(self):
         Category.objects.create(name='隐藏分类', status='inactive')
@@ -26,4 +26,4 @@ class CategoryPermissionTests(APITestCase):
         response = self.client.get('/api/blog/categories/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual([item['name'] for item in response.data['data']], ['工程实践'])
+        self.assertEqual([item['name'] for item in response.data['data']['items']], ['工程实践'])

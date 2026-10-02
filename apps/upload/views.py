@@ -43,8 +43,18 @@ logger = logging.getLogger(__name__)
 
 class FilePagination(PageNumberPagination):
     page_size = 10
-    page_size_query_param = 'page_size'
+    page_size_query_param = 'pageSize'
     max_page_size = 100
+
+    def get_paginated_response(self, data):
+        return Response({
+            'code': 200,
+            'message': 'success',
+            'data': {
+                'total': self.page.paginator.count,
+                'items': data
+            }
+        })
 
 def ensure_upload_directories():
     """
@@ -112,7 +122,11 @@ class FileManagementViewSet(ModelViewSet):
         # 检查权限
         if not request.user.is_staff and not request.user.is_superuser and instance.uploader != request.user:
             return Response(
-                {"detail": "您没有权限删除此文件"},
+                {
+                    'code': 403,
+                    'message': '您没有权限删除此文件',
+                    'data': None
+                },
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -195,7 +209,7 @@ class FileManagementViewSet(ModelViewSet):
             'code': 200,
             'data': {
                 'total': aggregate['total_records'],
-                'totalBytes': aggregate['total_bytes'],
+                'total_bytes': aggregate['total_bytes'],
             },
             'message': '汇总成功'
         })

@@ -613,11 +613,11 @@ class FileStorageViewTests(APITestCase):
         for index in range(3):
             self._create_file(name=f"document-{index}.pdf", file_type="document")
 
-        response = self.client.get("/api/upload/files/?type=image&page_size=20")
+        response = self.client.get("/api/upload/files/?type=image&pageSize=20")
 
         self.assertEqual(200, response.status_code)
-        self.assertEqual(12, response.data["count"])
-        self.assertEqual(12, len(response.data["results"]))
+        self.assertEqual(12, response.data["data"]["total"])
+        self.assertEqual(12, len(response.data["data"]["items"]))
 
     def test_file_summary_counts_every_record_not_just_the_page(self):
         # 12 条图片（每页 10 条）加 3 条文档，用来区分「当页」与「全部」。
@@ -628,22 +628,22 @@ class FileStorageViewTests(APITestCase):
 
         page = self.client.get("/api/upload/files/?type=image")
         self.assertEqual(200, page.status_code)
-        self.assertEqual(10, len(page.data["results"]), "列表仍然是分页的")
-        self.assertEqual(1000, sum(item["file_size"] for item in page.data["results"]))
+        self.assertEqual(10, len(page.data["data"]["items"]), "列表仍然是分页的")
+        self.assertEqual(1000, sum(item["file_size"] for item in page.data["data"]["items"]))
 
         response = self.client.get("/api/upload/files/summary/?type=image")
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(12, response.data["data"]["total"], "汇总必须覆盖全部匹配记录")
-        self.assertEqual(1200, response.data["data"]["totalBytes"])
+        self.assertEqual(1200, response.data["data"]["total_bytes"])
 
         unfiltered = self.client.get("/api/upload/files/summary/")
         self.assertEqual(15, unfiltered.data["data"]["total"])
-        self.assertEqual(12 * 100 + 3 * 10, unfiltered.data["data"]["totalBytes"])
+        self.assertEqual(12 * 100 + 3 * 10, unfiltered.data["data"]["total_bytes"])
 
         empty = self.client.get("/api/upload/files/summary/?type=video")
         self.assertEqual(0, empty.data["data"]["total"])
-        self.assertEqual(0, empty.data["data"]["totalBytes"])
+        self.assertEqual(0, empty.data["data"]["total_bytes"])
 
     def test_private_file_is_not_available_from_public_route(self):
         uploaded = self._create_file(is_public=False)

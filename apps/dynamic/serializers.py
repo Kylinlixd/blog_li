@@ -212,13 +212,13 @@ class SimpleDynamicSerializer(serializers.ModelSerializer):
       "status": "draft/published" // 状态：草稿或已发布
     }
     """
-    mediaUrls = serializers.SerializerMethodField()
+    media_urls = serializers.SerializerMethodField()
     
     class Meta:
         model = Dynamic
-        fields = ['id', 'title', 'type', 'content', 'mediaUrls', 'status']
+        fields = ['id', 'title', 'type', 'content', 'media_urls', 'status']
     
-    def get_mediaUrls(self, obj):
+    def get_media_urls(self, obj):
         if obj.type not in {'image', 'audio', 'video'}:
             return []
         return list(obj.media_urls)

@@ -28,6 +28,8 @@ from apps.dynamic.views import (
 )
 from apps.category.views import CategoryViewSet, BlogCategoriesView
 from apps.tag.views import TagViewSet
+
+from blog.seo_views import ArticleFeed, SitemapView, robots_txt
 from apps.comment.views import CommentViewSet, BlogCommentView
 from apps.upload.views import (
     FileUploadView, AvatarUploadView,
@@ -74,6 +76,12 @@ public_blog_api_patterns = [
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    # SEO：sitemap / RSS / robots（nginx 对这三条路径精确转发到 Django）
+    path('sitemap.xml', SitemapView.as_view(), name='sitemap'),
+    path('feed.xml', ArticleFeed(), name='rss-feed'),
+    path('robots.txt', robots_txt, name='robots'),
+
     path('api/blog/', include(public_blog_api_patterns)),
     path('api/', hidden_api_root, name='api-root-hidden'),
     path('api/', include(router.urls)),

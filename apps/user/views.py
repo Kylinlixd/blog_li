@@ -103,9 +103,19 @@ class UserViewSet(viewsets.ModelViewSet):
                     'message': '用户名或密码错误'
                 }, status=status.HTTP_400_BAD_REQUEST)
         else:
+            # errors 是 {field: [msg, ...]} 字典；message 契约要求是字符串
+            flat_errors = []
+            for field, messages in serializer.errors.items():
+                if isinstance(messages, dict):
+                    for sub_messages in messages.values():
+                        flat_errors.extend(f'{field}: {item}' for item in sub_messages)
+                else:
+                    flat_errors.extend(f'{field}: {item}' for item in messages)
+            detail = '；'.join(flat_errors) if flat_errors else '请求参数有误'
             return Response({
                 'code': 400,
-                'message': serializer.errors
+                'message': detail,
+                'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'])
@@ -127,9 +137,19 @@ class UserViewSet(viewsets.ModelViewSet):
             self._set_refresh_cookie(response, refresh_token)
             return response
         else:
+            # errors 是 {field: [msg, ...]} 字典；message 契约要求是字符串
+            flat_errors = []
+            for field, messages in serializer.errors.items():
+                if isinstance(messages, dict):
+                    for sub_messages in messages.values():
+                        flat_errors.extend(f'{field}: {item}' for item in sub_messages)
+                else:
+                    flat_errors.extend(f'{field}: {item}' for item in messages)
+            detail = '；'.join(flat_errors) if flat_errors else '请求参数有误'
             return Response({
                 'code': 400,
-                'message': serializer.errors
+                'message': detail,
+                'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'])
@@ -157,7 +177,8 @@ class UserViewSet(viewsets.ModelViewSet):
             # 清除刷新令牌 cookie
             response = Response({
                 'code': 200,
-                'message': '退出登录成功'
+                'message': '退出登录成功',
+                'data': None
             })
             response.delete_cookie('refresh_token', path='/')
             return response

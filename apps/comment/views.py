@@ -31,10 +31,8 @@ class CommentPagination(PageNumberPagination):
             'code': 200,
             'message': 'success',
             'data': {
-                'list': data,
-                'total': self.page.paginator.count,
-                'page': self.page.number,
-                'pageSize': self.page_size
+                'items': data,
+                'total': self.page.paginator.count
             }
         })
 
@@ -269,7 +267,8 @@ class BlogCommentView(APIView):
         if not dynamic_id:
             return Response({
                 'code': 400,
-                'message': 'dynamic_id 是必需的'
+                'message': 'dynamic_id 是必需的',
+                'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
             
         # 待审核评论仅对提交者返回，不进入公开列表。

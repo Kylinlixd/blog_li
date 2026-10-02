@@ -2,29 +2,30 @@ from rest_framework import serializers
 from .models import Category
 
 class CategorySerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-    dynamicCount = serializers.IntegerField(source='dynamic_count', read_only=True)
+    dynamic_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'sort', 'status', 'createdAt', 'updatedAt', 'dynamicCount']
+        fields = ['id', 'name', 'description', 'sort', 'status', 'created_at', 'updated_at', 'dynamic_count']
         extra_kwargs = {
             'name': {'required': True, 'allow_blank': False},
             'description': {'required': False},
             'sort': {'required': False}
         }
-        read_only_fields = ['id', 'createdAt', 'updatedAt']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_dynamic_count(self, obj):
+        # 注解优先；retrieve 等未注解的路径回退到实时统计
+        if hasattr(obj, 'dynamic_count'):
+            return obj.dynamic_count
+        return obj.dynamics.filter(status='published').count()
 
 
 class SimpleCategorySerializer(serializers.ModelSerializer):
     """简化的分类序列化器"""
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'sort', 'status', 'createdAt', 'updatedAt']
+        fields = ['id', 'name', 'description', 'sort', 'status', 'created_at', 'updated_at']
 
 
 class CategoryCreateSerializer(serializers.ModelSerializer):

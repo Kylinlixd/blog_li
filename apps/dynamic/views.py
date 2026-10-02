@@ -90,8 +90,27 @@ def _file_prefetch():
     return Prefetch('files', queryset=UploadFile.objects.order_by('pk'))
 
 
+def _category_prefetch():
+    """预注解分类的已发布动态数：CategorySerializer 直接读注解，避免每行 COUNT。"""
+    return Prefetch('category', queryset=Category.objects.annotate(
+        dynamic_count=Count('dynamics', filter=Q(dynamics__status='published'))))
+
+
+def _tag_prefetch():
+    """预注解标签的已发布动态数：TagSerializer 直接读注解，避免每行 COUNT。"""
+    return Prefetch('tags', queryset=Tag.objects.annotate(
+        dynamic_count=Count('dynamics', filter=Q(dynamics__status='published'))))
+
+
+def _public_list_prefetch():
+    return [_category_prefetch(), _tag_prefetch(), _file_prefetch(), Prefetch('comments')]
+
+
 class DynamicViewSet(ModelViewSet):
-    queryset = Dynamic.objects.select_related('author', 'category').prefetch_related('tags', _file_prefetch())
+    # category/tags 走预注解的 Prefetch（见 _public_list_prefetch），
+    # 序列化器读 dynamic_count 注解，列表不会随行数产生每行 COUNT
+    queryset = Dynamic.objects.select_related('author').prefetch_related(
+        _category_prefetch(), _tag_prefetch(), _file_prefetch())
     pagination_class = DynamicPagination
     permission_classes = [IsContentEditor]
     
@@ -280,7 +299,7 @@ class DynamicViewSet(ModelViewSet):
                     'content': instance.content,
                     'type': instance.type,
                     'status': instance.status,
-                    'mediaUrls': _media_urls(instance),
+                    'media_urls': _media_urls(instance),
                     'created_at': instance.created_at,
                     'views': instance.view_count,
                     'likes': instance.like_count,
@@ -477,7 +496,7 @@ class DynamicViewSet(ModelViewSet):
 
 
 class HotDynamicsView(ReadOnlyModelViewSet):
-    queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', _file_prefetch(), 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-view_count')
+    queryset = Dynamic.objects.filter(status='published').prefetch_related(*_public_list_prefetch()).annotate(comments_count=Count('comments', distinct=True)).order_by('-view_count')
     serializer_class = PublicDynamicListSerializer
     permission_classes = []
     
@@ -493,7 +512,7 @@ class HotDynamicsView(ReadOnlyModelViewSet):
 
 
 class RecentDynamicsView(ReadOnlyModelViewSet):
-    queryset = Dynamic.objects.filter(status='published').select_related('category').prefetch_related('tags', _file_prefetch(), 'comments').annotate(comments_count=Count('comments', distinct=True)).order_by('-created_at')
+    queryset = Dynamic.objects.filter(status='published').prefetch_related(*_public_list_prefetch()).annotate(comments_count=Count('comments', distinct=True)).order_by('-created_at')
     serializer_class = PublicDynamicListSerializer
     permission_classes = []
     
@@ -521,7 +540,7 @@ class CategoryDynamicsView(APIView):
             dynamics = Dynamic.objects.filter(
                 category=category,
                 status='published'
-            ).select_related('category').prefetch_related('tags', _file_prefetch(), 'comments').annotate(
+            ).prefetch_related(*_public_list_prefetch()).annotate(
                 comments_count=Count('comments', distinct=True)
             ).order_by('-created_at')
             
@@ -541,7 +560,7 @@ class CategoryDynamicsView(APIView):
                 'message': 'success',
                 'data': {
                     'category': category_serializer.data,
-                    'dynamics': dynamics_serializer.data,
+                    'items': dynamics_serializer.data,
                     'total': paginator.page.paginator.count
                 }
             })
@@ -575,7 +594,7 @@ class TagDynamicsView(APIView):
             dynamics = Dynamic.objects.filter(
                 tags=tag,
                 status='published'
-            ).select_related('category').prefetch_related('tags', _file_prefetch(), 'comments').annotate(
+            ).prefetch_related(*_public_list_prefetch()).annotate(
                 comments_count=Count('comments', distinct=True)
             ).order_by('-created_at')
             
@@ -597,7 +616,7 @@ class TagDynamicsView(APIView):
                         'description': tag.description if hasattr(tag, 'description') else '',
                         'count': tag.dynamics.filter(status='published').count()
                     },
-                    'dynamics': serializer.data,
+                    'items': serializer.data,
                     'total': paginator.page.paginator.count
                 }
             })
@@ -728,8 +747,8 @@ class SearchView(APIView):
                     'title': dynamic.title,
                     # 不再返回全文：搜索页只渲染 excerpt，pageSize=10 时整包从约 70KB 降到几 KB
                     'excerpt': dynamic.content[:200] + '...' if len(dynamic.content) > 200 else dynamic.content,
-                    'createdAt': dynamic.created_at,
-                    'updatedAt': dynamic.updated_at,
+                    'created_at': dynamic.created_at,
+                    'updated_at': dynamic.updated_at,
                     'views': dynamic.view_count,
                     'likes': dynamic.like_count,
                     'comments': getattr(dynamic, 'comments_count', dynamic.comments.count() if hasattr(dynamic, 'comments') else 0),

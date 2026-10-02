@@ -311,7 +311,7 @@ class CommentNotificationTests(APITestCase):
         response = self.client.get('/api/comments/?unread=1')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['total'], 1)
-        self.assertTrue(response.data['data']['list'][0]['is_unread'])
+        self.assertTrue(response.data['data']['items'][0]['is_unread'])
 
     def test_public_path_cannot_access_notification_actions(self):
         response = self.client.get('/api/blog/comments/unread-summary/')

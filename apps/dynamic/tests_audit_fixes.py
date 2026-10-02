@@ -196,19 +196,19 @@ class StandardPaginationTests(APITestCase):
         response = self.client.get('/api/categories/?pageSize=20')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(response.data['results']), 10)
+        self.assertGreater(len(response.data['data']['items']), 10)
 
     def test_tag_list_honours_page_size(self):
         response = self.client.get('/api/tags/?pageSize=20')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(response.data['results']), 10)
+        self.assertGreater(len(response.data['data']['items']), 10)
 
     def test_page_size_is_capped(self):
         response = self.client.get('/api/tags/?pageSize=100000')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertLessEqual(len(response.data['results']), 100)
+        self.assertLessEqual(len(response.data['data']['items']), 100)
 
 
 class PublicWriteThrottleTests(APITestCase):

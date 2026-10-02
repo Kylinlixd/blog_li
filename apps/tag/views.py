@@ -1,6 +1,7 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import AllowAny
 from apps.user.permissions import IsContentEditor
+from rest_framework import status
 from rest_framework.response import Response
 from django.db.models import Count, Q
 from blog.pagination import StandardPagination
@@ -93,8 +94,9 @@ class TagViewSet(ModelViewSet):
         if hasattr(instance, 'dynamics') and instance.dynamics.exists():
             return Response({
                 'code': 400,
-                'message': '该标签下有动态，不能删除'
-            })
+                'message': '该标签下有动态，不能删除',
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
         self.perform_destroy(instance)
         return Response({
             'code': 200,

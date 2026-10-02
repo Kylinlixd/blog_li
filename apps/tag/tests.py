@@ -24,7 +24,7 @@ class TagPermissionTests(APITestCase):
         response = self.client.get('/api/blog/tags/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual([item['name'] for item in response.data['results']], ['Vue'])
+        self.assertEqual([item['name'] for item in response.data['data']['items']], ['Vue'])
 
     def test_regular_user_cannot_create_management_tag(self):
         from django.contrib.auth import get_user_model

@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 import sys
 from django.core.exceptions import ImproperlyConfigured
 
-from blog.env import env_bool, env_list
+from blog.env import env_bool, env_list, env_str
 
 # 加载环境变量
 load_dotenv()
@@ -41,6 +41,9 @@ if not SECRET_KEY:
 
 # SECURITY WARNING: don't run with debug turned on in production!
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost')
+
+# 对外站点根地址（sitemap / RSS / robots 里的绝对链接用），不带结尾斜杠
+PUBLIC_SITE_URL = env_str('PUBLIC_SITE_URL', 'https://leexd.top')
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT', not DEBUG)

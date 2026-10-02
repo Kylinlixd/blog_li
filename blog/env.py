@@ -13,3 +13,10 @@ def env_bool(name, default=False):
 def env_list(name, default=''):
     value = os.getenv(name, default)
     return [item.strip() for item in value.split(',') if item.strip()]
+
+
+def env_str(name, default=''):
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+    return value.strip()
