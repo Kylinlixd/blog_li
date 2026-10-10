@@ -31,6 +31,9 @@ rsync -az --delete \
 echo "==> 3/6 远端 Django 检查"
 ssh "$SERVER" "cd '${REMOTE_DIR}' && set -a && . ./.env && set +a && .venv/bin/python manage.py check"
 
+echo "==> 3.5/6 数据库迁移"
+ssh "$SERVER" "cd '${REMOTE_DIR}' && set -a && . ./.env && set +a && .venv/bin/python manage.py migrate --no-input"
+
 echo "==> 4/6 远端回归测试"
 ssh "$SERVER" "cd '${REMOTE_DIR}' && set -a && . ./.env && set +a && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py test apps.dynamic.tests_audit_fixes 2>&1 | tail -4"
 

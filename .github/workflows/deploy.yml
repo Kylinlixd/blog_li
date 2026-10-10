@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: deploy-backend-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Ensure rsync available
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq rsync
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host blog-server\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_ed25519\n' \
+            "${{ secrets.SERVER_HOST }}" "${{ secrets.SERVER_USERNAME }}" > ~/.ssh/config
+
+      - name: Deploy (备份 → 同步 → 检查 → 迁移 → 回归测试 → 重启 → 健康检查)
+        run: bash ops/deploy.sh blog-server
