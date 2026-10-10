@@ -3,6 +3,9 @@ name: Deploy
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
 
 concurrency:
   group: deploy-backend-main
