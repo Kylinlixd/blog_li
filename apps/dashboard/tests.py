@@ -47,7 +47,8 @@ class DashboardStatsTests(APITestCase):
         self.assertEqual(sum(row['pv'] for row in data['daily']), 2)
 
     def test_daily_publishing_uses_local_calendar_day(self):
-        from datetime import datetime, timezone as dt_timezone
+        from datetime import timedelta, timezone as dt_timezone
+        from django.utils import timezone as dj_timezone
         from apps.dynamic.models import Dynamic
 
         article = Dynamic.objects.create(
@@ -56,19 +57,22 @@ class DashboardStatsTests(APITestCase):
             content='内容',
             status='published',
         )
-        # 16:30 UTC is 00:30 on the next day in Asia/Shanghai.
-        Dynamic.objects.filter(pk=article.pk).update(
-            created_at=datetime(2026, 9, 8, 16, 30, tzinfo=dt_timezone.utc),
-        )
+        # 取上海时区“昨天 00:30”，换算成 UTC 写库：
+        # 既验证跨自然日的换算，又保证稳定落在最近 7 天统计窗口内。
+        now_sh = dj_timezone.localtime(dj_timezone.now())
+        target_local = (now_sh - timedelta(days=1)).replace(hour=0, minute=30, second=0, microsecond=0)
+        target_utc = target_local.astimezone(dt_timezone.utc)
+        Dynamic.objects.filter(pk=article.pk).update(created_at=target_utc)
         self.client.force_authenticate(self.user)
 
         with timezone.override('Asia/Shanghai'):
             response = self.client.get('/api/stats/')
 
         daily = response.data['data']['daily']
+        expected_day = target_local.date().isoformat()
         self.assertEqual(sum(row['count'] for row in daily), 1)
         self.assertEqual(
-            next(row['count'] for row in daily if row['day'] == '2026-09-09'),
+            next(row['count'] for row in daily if row['day'] == expected_day),
             1,
         )
 
