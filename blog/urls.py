@@ -27,6 +27,7 @@ from apps.dynamic.views import (
     CategoryDynamicsView, SearchView, TagDynamicsView
 )
 from apps.category.views import CategoryViewSet, BlogCategoriesView
+from apps.collection.views import BlogCollectionViewSet
 from apps.tag.views import TagViewSet
 
 from blog.seo_views import ArticleFeed, SitemapView, robots_txt
@@ -71,6 +72,8 @@ public_blog_api_patterns = [
     path('categories/<int:categoryId>/dynamics/', CategoryDynamicsView.as_view(), name='api-category-dynamics'),
     path('search/', SearchView.as_view(), name='api-blog-search'),
     path('tags/', TagViewSet.as_view({'get': 'list'}), name='api-blog-tags'),
+    path('collections/', BlogCollectionViewSet.as_view({'get': 'list'}), name='api-blog-collections'),
+    path('collections/<int:pk>/', BlogCollectionViewSet.as_view({'get': 'retrieve'}), name='api-blog-collection-detail'),
     path('tags/<int:tagId>/dynamics/', TagDynamicsView.as_view(), name='api-tag-dynamics'),
 ]
 
