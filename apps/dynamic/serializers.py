@@ -139,20 +139,18 @@ class DynamicSerializer(serializers.ModelSerializer):
     author = PublicUserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
-    mediaUrls = serializers.SerializerMethodField()
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    media_urls = serializers.SerializerMethodField()
     
     class Meta:
         model = Dynamic
         fields = [
-            'id', 'title', 'content', 'type', 'status', 'mediaUrls',
-            'category', 'tags', 'view_count', 'createdAt', 'updatedAt',
+            'id', 'title', 'content', 'type', 'status', 'media_urls',
+            'category', 'tags', 'view_count', 'created_at', 'updated_at',
             'author'
         ]
         read_only_fields = ['id', 'author', 'view_count', 'created_at', 'updated_at']
     
-    def get_mediaUrls(self, obj):
+    def get_media_urls(self, obj):
         return _media_urls(obj)
 
 
@@ -162,33 +160,29 @@ class AdjacentDynamicSerializer(serializers.Serializer):
 
 
 class HotDynamicSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     views = serializers.IntegerField(source='view_count', read_only=True)
     
     class Meta:
         model = Dynamic
-        fields = ['id', 'title', 'views', 'createdAt']
+        fields = ['id', 'title', 'views', 'created_at']
 
 
 class RecentDynamicSerializer(serializers.ModelSerializer):
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     
     class Meta:
         model = Dynamic
-        fields = ['id', 'title', 'createdAt']
+        fields = ['id', 'title', 'created_at']
 
 
 class AdminDynamicSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
     audio = serializers.SerializerMethodField()
     video = serializers.SerializerMethodField()
-    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
-    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     views = serializers.IntegerField(source='view_count', read_only=True)
     
     class Meta:
         model = Dynamic
-        fields = ['id', 'content', 'type', 'status', 'createdAt', 'updatedAt',
+        fields = ['id', 'content', 'type', 'status', 'created_at', 'updated_at',
                  'images', 'audio', 'video', 'views']
     
     def get_images(self, obj):
@@ -359,7 +353,6 @@ class DynamicListSerializer(serializers.ModelSerializer):
 
 class PublicDynamicListSerializer(serializers.ModelSerializer):
     created_at = serializers.DateTimeField(read_only=True)
-    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
     views = serializers.IntegerField(source="view_count", read_only=True)
     likes = serializers.IntegerField(source="like_count", read_only=True)
     comments = serializers.SerializerMethodField()
@@ -368,15 +361,15 @@ class PublicDynamicListSerializer(serializers.ModelSerializer):
     content = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
-    mediaUrls = serializers.SerializerMethodField()
-    mediaCount = serializers.SerializerMethodField()
+    media_urls = serializers.SerializerMethodField()
+    media_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Dynamic
         fields = [
             "id", "title", "content", "type", "created_at",
-            "createdAt", "summary", "views", "likes", "comments", "category", "tags",
-            "files", "mediaUrls", "mediaCount",
+            "summary", "views", "likes", "comments", "category", "tags",
+            "files", "media_urls", "media_count",
         ]
 
     def get_content(self, obj):
@@ -388,10 +381,10 @@ class PublicDynamicListSerializer(serializers.ModelSerializer):
     def get_files(self, obj):
         return MediaFileSerializer(_file_preview(obj, 3), many=True).data
 
-    def get_mediaUrls(self, obj):
+    def get_media_urls(self, obj):
         return _first_media_urls(obj, 3)
 
-    def get_mediaCount(self, obj):
+    def get_media_count(self, obj):
         return _media_count(obj)
 
     def get_comments(self, obj):
