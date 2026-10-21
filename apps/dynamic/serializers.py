@@ -139,17 +139,29 @@ class DynamicSerializer(serializers.ModelSerializer):
     author = PublicUserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
+    collections = serializers.SerializerMethodField()
     media_urls = serializers.SerializerMethodField()
     
     class Meta:
         model = Dynamic
         fields = [
             'id', 'title', 'content', 'type', 'status', 'media_urls',
-            'category', 'tags', 'view_count', 'created_at', 'updated_at',
-            'author'
+            'category', 'tags', 'collections', 'view_count', 'created_at',
+            'updated_at', 'author'
         ]
         read_only_fields = ['id', 'author', 'view_count', 'created_at', 'updated_at']
     
+    def get_collections(self, obj):
+        return [
+            {
+                'id': item.collection_id,
+                'title': item.collection.title,
+                'sort': item.sort,
+            }
+            for item in obj.collection_items.select_related('collection')
+            .order_by('collection__sort', 'collection__id', 'sort')
+        ]
+
     def get_media_urls(self, obj):
         return _media_urls(obj)
 
@@ -266,7 +278,7 @@ class DynamicCreateSerializer(serializers.ModelSerializer):
         created_at = validated_data.pop('createdAt', None)
         
         # 创建动态实例
-        if file_ids:
+        if file_ids is not serializers.empty and file_ids:
             validated_data['type'] = _dynamic_type_for_file_ids(file_ids)
 
         instance = Dynamic.objects.create(

@@ -27,7 +27,7 @@ from apps.dynamic.views import (
     CategoryDynamicsView, SearchView, TagDynamicsView
 )
 from apps.category.views import CategoryViewSet, BlogCategoriesView
-from apps.collection.views import BlogCollectionViewSet
+from apps.collection.views import BlogCollectionViewSet, CollectionAdminViewSet
 from apps.tag.views import TagViewSet
 
 from blog.seo_views import ArticleFeed, SitemapView, robots_txt
@@ -49,6 +49,7 @@ router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'comments', CommentViewSet, basename='comment')
 router.register(r'access-logs', AccessLogViewSet, basename='access-log')
 router.register(r'access-log-rules', IpSecurityRuleViewSet, basename='access-log-rule')
+router.register(r'collections', CollectionAdminViewSet, basename='collection')
 
 
 def hidden_api_root(request):

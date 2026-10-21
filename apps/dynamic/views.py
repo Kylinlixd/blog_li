@@ -3,6 +3,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from apps.collection.views import sync_dynamic_collections
 from apps.dynamic.models import Dynamic
 from apps.upload.models import UploadFile
 from rest_framework.permissions import AllowAny
@@ -311,7 +312,13 @@ class DynamicViewSet(ModelViewSet):
                     'tags': [{
                         'id': tag.id,
                         'name': tag.name
-                    } for tag in instance.tags.all()]
+                    } for tag in instance.tags.all()],
+                    'collections': [{
+                        'id': item.collection_id,
+                        'title': item.collection.title,
+                        'sort': item.sort,
+                    } for item in instance.collection_items.select_related('collection')
+                    .order_by('collection__sort', 'collection__id', 'sort')]
                 }
             })
             
@@ -333,6 +340,8 @@ class DynamicViewSet(ModelViewSet):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         instance = serializer.save()
+        if 'collectionIds' in request.data:
+            sync_dynamic_collections(instance, request.data.get('collectionIds') or [])
         return Response({
             'code': 200,
             'message': '创建动态成功',
@@ -350,7 +359,9 @@ class DynamicViewSet(ModelViewSet):
             serializer = self.get_serializer(instance, data=request.data, partial=partial, context={'request': request})
             
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        instance = serializer.save()
+        if 'collectionIds' in request.data:
+            sync_dynamic_collections(instance, request.data.get('collectionIds') or [])
         return Response({
             'code': 200,
             'message': '更新动态成功',
