@@ -79,6 +79,15 @@ class RequestIdMiddlewareTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 409)
 
+    def test_server_error_releases_idempotency_key_for_retry(self):
+        request = self.factory.post('/api/dynamics/', HTTP_X_REQUEST_ID='retry-me')
+
+        self.assertIsNone(self.middleware.process_request(request))
+        self.middleware.process_response(request, HttpResponse(status=500))
+
+        # 业务没执行成功（5xx）：同一 X-Request-ID 重试不应再被 409 挡住
+        self.assertIsNone(self.middleware.process_request(request))
+
 
 class ClientIpTests(SimpleTestCase):
     def setUp(self):
@@ -93,11 +102,28 @@ class ClientIpTests(SimpleTestCase):
 
         self.assertEqual(get_client_ip(request), '198.51.100.10')
 
-    def test_trusted_local_proxy_forwarded_header_is_used(self):
+    def test_trusted_local_proxy_uses_last_forwarded_hop(self):
+        # nginx 以 $proxy_add_x_forwarded_for 把真实来源追加在末尾，
+        # 前面的条目来自客户端自报、可任意伪造，只有最后一跳可信。
         request = self.factory.get(
             '/api/stats/',
             REMOTE_ADDR='127.0.0.1',
-            HTTP_X_FORWARDED_FOR='203.0.113.99, 127.0.0.1',
+            HTTP_X_FORWARDED_FOR='203.0.113.99, 198.51.100.77',
         )
 
-        self.assertEqual(get_client_ip(request), '203.0.113.99')
+        self.assertEqual(get_client_ip(request), '198.51.100.77')
+
+    def test_trusted_local_proxy_ignores_spoofed_forwarded_chain(self):
+        # 客户端伪造整条链：nginx 追加真实 IP 后，真实 IP 位于末位。
+        request = self.factory.get(
+            '/api/stats/',
+            REMOTE_ADDR='127.0.0.1',
+            HTTP_X_FORWARDED_FOR='6.6.6.6, 10.0.0.1, 198.51.100.77',
+        )
+
+        self.assertEqual(get_client_ip(request), '198.51.100.77')
+
+    def test_trusted_local_proxy_without_forwarded_header_falls_back(self):
+        request = self.factory.get('/api/stats/', REMOTE_ADDR='127.0.0.1')
+
+        self.assertEqual(get_client_ip(request), '127.0.0.1')

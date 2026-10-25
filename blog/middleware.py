@@ -70,12 +70,13 @@ class AccessLogMiddleware(MiddlewareMixin):
             and request.path != '/api/system/health/'
         ):
             try:
-                from apps.access_log.models import AccessLog
                 from apps.access_log.device import parse_user_agent
+                from apps.access_log.log_writer import enqueue_access_log
+                from apps.access_log.models import AccessLog
                 ip = get_client_ip(request)
                 user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
                 device_type, device_model = parse_user_agent(user_agent)
-                AccessLog.objects.create(
+                fields = dict(
                     ip_address=ip,
                     method=request.method,
                     path=request.path[:255],
@@ -87,6 +88,11 @@ class AccessLogMiddleware(MiddlewareMixin):
                     security_rule=getattr(request, 'access_security_rule', None),
                     security_action=getattr(request, 'access_security_action', ''),
                 )
+                if getattr(settings, 'ACCESS_LOG_SYNC', False):
+                    AccessLog.objects.create(**fields)
+                else:
+                    # 默认走内存队列异步批量落库，响应路径不再阻塞写库
+                    enqueue_access_log(fields)
             except Exception:
                 close_old_connections()
         return response
@@ -251,4 +257,9 @@ class RequestIdMiddleware(MiddlewareMixin):
         request_id = getattr(request, 'request_id', None)
         if request_id:
             response['X-Request-ID'] = request_id
+            if response.status_code >= 500:
+                # 5xx 意味着业务没有执行成功：释放幂等标记，
+                # 客户端用同一 X-Request-ID 重试不会被 409 挡住
+                cache.delete(f'request_id:{request_id}')
+                cache.delete(f'request_id:{request_id}:time')
         return response

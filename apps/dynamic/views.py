@@ -17,6 +17,7 @@ from apps.dynamic.serializers import (
     DynamicListSerializer, PublicDynamicListSerializer, _media_urls,
 )
 from django.db.models import Q, F, Count, Prefetch
+from django.db.models.functions import TruncMonth
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
@@ -104,7 +105,12 @@ def _tag_prefetch():
 
 
 def _public_list_prefetch():
-    return [_category_prefetch(), _tag_prefetch(), _file_prefetch(), Prefetch('comments')]
+    return [_category_prefetch(), _tag_prefetch(), _file_prefetch()]
+
+
+def _comments_count():
+    """公开侧评论数与公开评论列表口径一致：只统计已通过审核的评论。"""
+    return Count('comments', filter=Q(comments__status='approved'), distinct=True)
 
 
 class DynamicViewSet(ModelViewSet):
@@ -128,11 +134,19 @@ class DynamicViewSet(ModelViewSet):
         if self.action in ('like', 'view'):
             self.throttle_scope = 'public_like' if self.action == 'like' else 'public_view'
             return [ScopedRateThrottle()]
+        # 公开列表 / timeline 支持keyword icontains 全文过滤，同样按 IP 限速
+        if self.action in ('list', 'timeline') and is_public_blog_request(self.request):
+            self.throttle_scope = 'public_list'
+            return [ScopedRateThrottle()]
         return super().get_throttles()
 
     def get_queryset(self):
-        queryset = super().get_queryset().annotate(comments_count=Count('comments', distinct=True))
-        
+        if is_public_blog_request(self.request):
+            # 公开侧评论数只统计 approved（与公开评论列表口径一致）
+            queryset = super().get_queryset().annotate(comments_count=_comments_count())
+        else:
+            queryset = super().get_queryset().annotate(comments_count=Count('comments', distinct=True))
+
         # 前台请求
         if is_public_blog_request(self.request):
             queryset = queryset.filter(status='published').order_by('-created_at')
@@ -259,27 +273,30 @@ class DynamicViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='timeline')
     def timeline(self, request):
-        counts = {}
-        published_at = (
-            Dynamic.objects.filter(status='published')
-            .order_by('-created_at')
-            .values_list('created_at', flat=True)
-        )
-        for value in published_at:
-            local = timezone.localtime(value)
-            key = (local.year, local.month)
-            counts[key] = counts.get(key, 0) + 1
-
-        items = [
-            {
-                'key': f'{year}-{month:02d}',
-                'year': year,
-                'month': month,
-                'monthLabel': f'{month}月',
-                'count': counts[(year, month)],
-            }
-            for year, month in sorted(counts, reverse=True)
-        ]
+        # 归档月份计数走 DB 聚合并缓存：原来每请求把全部已发布文章的
+        # created_at 拉到 Python 里逐行计数，文章越多越慢。
+        # 新文章发布后最多延迟 5 分钟出现，与公开页缓存语义一致。
+        cache_key = 'blog:timeline:v1'
+        items = cache.get(cache_key)
+        if items is None:
+            month_counts = (
+                Dynamic.objects.filter(status='published')
+                .annotate(month_start=TruncMonth('created_at'))
+                .values('month_start')
+                .annotate(count=Count('id'))
+                .order_by('-month_start')
+            )
+            items = [
+                {
+                    'key': row['month_start'].strftime('%Y-%m'),
+                    'year': row['month_start'].year,
+                    'month': row['month_start'].month,
+                    'monthLabel': f"{row['month_start'].month}月",
+                    'count': row['count'],
+                }
+                for row in month_counts
+            ]
+            cache.set(cache_key, items, 300)
         return Response({
             'code': 200,
             'message': '获取时间线成功',
@@ -407,10 +424,17 @@ class DynamicViewSet(ModelViewSet):
             'message': '获取相邻动态成功'
         })
     
+    def _get_dynamic_for_counter(self, pk):
+        # 浏览/点赞是热点路径，用不到 select_related + 3 组 prefetch + 注解；
+        # 公开侧直接按已发布条件取轻量实例，避免整条重查询只为改一个计数器
+        if is_public_blog_request(self.request):
+            return get_object_or_404(Dynamic, pk=pk, status='published')
+        return self.get_object()
+
     @action(detail=True, methods=['post', 'put'])
     def view(self, request, pk=None):
         try:
-            dynamic = self.get_object()
+            dynamic = self._get_dynamic_for_counter(pk)
             ip_address = get_client_ip(request) or 'unknown'
             cache_key = f'dynamic_view:{dynamic.pk}:{ip_address}'
             if not cache.add(cache_key, True, 86400):
@@ -448,7 +472,7 @@ class DynamicViewSet(ModelViewSet):
     @action(detail=True, methods=['post'])
     def like(self, request, pk=None):
         try:
-            dynamic = self.get_object()
+            dynamic = self._get_dynamic_for_counter(pk)
             ip_address = get_client_ip(request) or 'unknown'
             user = request.user if request.user.is_authenticated else None
 
@@ -507,7 +531,7 @@ class DynamicViewSet(ModelViewSet):
 
 
 class HotDynamicsView(ReadOnlyModelViewSet):
-    queryset = Dynamic.objects.filter(status='published').prefetch_related(*_public_list_prefetch()).annotate(comments_count=Count('comments', distinct=True)).order_by('-view_count')
+    queryset = Dynamic.objects.filter(status='published').prefetch_related(*_public_list_prefetch()).annotate(comments_count=_comments_count()).order_by('-view_count')
     serializer_class = PublicDynamicListSerializer
     permission_classes = []
     
@@ -523,7 +547,7 @@ class HotDynamicsView(ReadOnlyModelViewSet):
 
 
 class RecentDynamicsView(ReadOnlyModelViewSet):
-    queryset = Dynamic.objects.filter(status='published').prefetch_related(*_public_list_prefetch()).annotate(comments_count=Count('comments', distinct=True)).order_by('-created_at')
+    queryset = Dynamic.objects.filter(status='published').prefetch_related(*_public_list_prefetch()).annotate(comments_count=_comments_count()).order_by('-created_at')
     serializer_class = PublicDynamicListSerializer
     permission_classes = []
     
@@ -552,7 +576,7 @@ class CategoryDynamicsView(APIView):
                 category=category,
                 status='published'
             ).prefetch_related(*_public_list_prefetch()).annotate(
-                comments_count=Count('comments', distinct=True)
+                comments_count=_comments_count()
             ).order_by('-created_at')
             
             # 序列化分类信息
@@ -606,7 +630,7 @@ class TagDynamicsView(APIView):
                 tags=tag,
                 status='published'
             ).prefetch_related(*_public_list_prefetch()).annotate(
-                comments_count=Count('comments', distinct=True)
+                comments_count=_comments_count()
             ).order_by('-created_at')
             
             # 分页
@@ -724,7 +748,13 @@ class SearchView(APIView):
             include_tags = request.GET.get('includeTags', 'true').lower() == 'true'
             include_categories = request.GET.get('includeCategories', 'true').lower() == 'true'
             sort_by = request.GET.get('sortBy', 'relevance')
-            
+
+            # 空 keyword 会让 icontains('') 命中全部已发布文章并在 Python 里
+            # 物化整个结果列表，是匿名可触发的最重路径；前端浏览模式走列表
+            # 接口不经过这里，空关键词直接返回空集。
+            if not keyword.strip():
+                return Response({'code': 200, 'message': 'success', 'data': {'items': [], 'total': 0}})
+
             results = []
             
             # 搜索动态（只返回已发布的）
@@ -740,7 +770,7 @@ class SearchView(APIView):
                     ),
                 )
             ).annotate(
-                comments_count=Count('comments', distinct=True),
+                comments_count=_comments_count(),
                 category_published_count=Count('category__dynamics', filter=Q(category__dynamics__status='published'), distinct=True),
                 relevance=Case(
                     When(title__icontains=keyword, then=Value(0.9)),

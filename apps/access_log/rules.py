@@ -3,6 +3,7 @@
 import ipaddress
 from datetime import datetime, timezone as datetime_timezone
 
+from django.core.cache import cache
 from django.db.models import F
 from django.utils import timezone
 
@@ -10,6 +11,11 @@ from .models import IpRateBucket
 
 
 RULE_PRIORITY = {"whitelist": 0, "blacklist": 1, "ban": 2, "rate_limit": 3}
+
+# 规则表是人工维护的小表，但中间件每个 /api/ 请求都要查一次；
+# 解析结果（规则实例 + 网络）整表缓存，增删改时由信号失效。
+RULES_CACHE_KEY = "access_log:active_rules:v1"
+RULES_CACHE_TTL = 30  # 秒，信号失效前的兜底窗口
 
 
 def normalize_target(value):
@@ -34,16 +40,12 @@ def validate_rate_window(rule_type, requests, window_seconds):
         raise ValueError("限流窗口必须为 1 到 86400 秒")
 
 
-def active_rules_for_ip(value, now=None):
-    try:
-        ip = ipaddress.ip_address((value or "").strip())
-    except ValueError:
-        return []
-
+def _load_active_rules():
+    """加载并预解析全部生效规则，按优先级排序。返回 [(rule, network)]。"""
     from .models import IpSecurityRule
 
-    now = now or timezone.now()
-    rules = []
+    now = timezone.now()
+    entries = []
     for rule in IpSecurityRule.objects.filter(status="active").iterator():
         if rule.expires_at and rule.expires_at <= now:
             continue
@@ -51,9 +53,38 @@ def active_rules_for_ip(value, now=None):
             network = ipaddress.ip_network(rule.target, strict=False)
         except ValueError:
             continue
+        entries.append((rule, network))
+    entries.sort(key=lambda pair: (RULE_PRIORITY.get(pair[0].rule_type, 99), -pair[0].created_at.timestamp()))
+    return entries
+
+
+def get_cached_active_rules():
+    entries = cache.get(RULES_CACHE_KEY)
+    if entries is None:
+        entries = _load_active_rules()
+        cache.set(RULES_CACHE_KEY, entries, RULES_CACHE_TTL)
+    return entries
+
+
+def invalidate_active_rules_cache():
+    cache.delete(RULES_CACHE_KEY)
+
+
+def active_rules_for_ip(value, now=None):
+    try:
+        ip = ipaddress.ip_address((value or "").strip())
+    except ValueError:
+        return []
+
+    # get_cached_active_rules 已按优先级排序，这里的过滤保持原有顺序
+    now = now or timezone.now()
+    rules = []
+    for rule, network in get_cached_active_rules():
+        # 缓存窗口内可能刚好过期，按时间再过滤一次，不回源
+        if rule.expires_at and rule.expires_at <= now:
+            continue
         if ip in network:
             rules.append(rule)
-    rules.sort(key=lambda rule: (RULE_PRIORITY.get(rule.rule_type, 99), -rule.created_at.timestamp()))
     return rules
 
 

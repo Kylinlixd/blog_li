@@ -5,6 +5,7 @@ from .models import AccessLog
 from .device import parse_user_agent
 from django.core.management import call_command
 from datetime import timedelta
+from django.test import override_settings
 from django.utils import timezone
 
 from apps.access_log.models import IpSecurityRule
@@ -16,9 +17,11 @@ class AccessLogTests(APITestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username='log-admin', password='safe-password-123', is_staff=True)
 
+    @override_settings(ACCESS_LOG_SYNC=True)
     def test_api_request_records_forwarded_ip(self):
+        # XFF 最后一跳才是 nginx 追加的真实来源，前面是客户端可伪造的链
         self.client.force_authenticate(self.user)
-        response = self.client.get('/api/stats/', HTTP_X_FORWARDED_FOR='203.0.113.8, 10.0.0.1', HTTP_USER_AGENT='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')
+        response = self.client.get('/api/stats/', HTTP_X_FORWARDED_FOR='10.0.0.1, 203.0.113.8', HTTP_USER_AGENT='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(AccessLog.objects.filter(path='/api/stats/', ip_address='203.0.113.8', user=self.user).exists())
         log = AccessLog.objects.get(path='/api/stats/', ip_address='203.0.113.8', user=self.user)

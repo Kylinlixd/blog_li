@@ -270,14 +270,26 @@ class BlogCommentView(APIView):
                 'message': 'dynamic_id 是必需的',
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
-            
+        try:
+            dynamic_id = int(dynamic_id)
+        except (TypeError, ValueError):
+            return Response({
+                'code': 400,
+                'message': 'dynamic_id 必须是整数',
+                'data': None
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # 待审核评论仅对提交者返回，不进入公开列表。
+        # parent 预取让 root_id/回复人昵称在两层深度内零额外查询；
+        # reply_count 走注解，避免每行一次 COUNT。
         queryset = Comment.objects.filter(
             dynamic_id=dynamic_id,
             dynamic__status='published',
             status='approved'
-        ).select_related('author').order_by('-created_at')
-        
+        ).select_related('author', 'parent', 'parent__parent').annotate(
+            approved_reply_count=Count('replies', filter=Q(replies__status='approved'), distinct=True)
+        ).order_by('-created_at')
+
         thread_mode = request.query_params.get('thread') == '1'
         if thread_mode:
             root_queryset = queryset.filter(parent__isnull=True).order_by('-created_at', '-id')
@@ -291,12 +303,20 @@ class BlogCommentView(APIView):
             page = max(page, 1)
             start = (page - 1) * page_size
             roots = list(root_queryset[start:start + page_size])
+            # 一条查询取回本页全部根评论的直接回复，按根分组后在内存里截取预览
+            replies_by_root = {}
+            if roots:
+                page_replies = queryset.filter(
+                    parent_id__in=[root.id for root in roots]
+                ).order_by('created_at', 'id')
+                for reply in page_replies:
+                    replies_by_root.setdefault(reply.parent_id, []).append(reply)
             payload = []
             for root in roots:
                 item = PublicCommentSerializer(root).data
-                replies = list(queryset.filter(parent_id=root.id).order_by('created_at', 'id')[:3])
-                item['replies_preview'] = PublicCommentSerializer(replies, many=True).data
-                item['reply_count'] = queryset.filter(parent_id=root.id).count()
+                item['replies_preview'] = PublicCommentSerializer(
+                    replies_by_root.get(root.id, [])[:3], many=True
+                ).data
                 payload.append(item)
             total = root_queryset.count()
             return Response({
@@ -311,15 +331,25 @@ class BlogCommentView(APIView):
                 },
             })
 
-        serializer = PublicCommentSerializer(queryset, many=True)
+        # 平铺模式同样真实分页：此前忽略 page/pageSize 把整篇评论一次性
+        # 返回，长评文章既慢也是匿名可放大的响应体
+        try:
+            page_size = int(request.query_params.get('pageSize', 10))
+            page = int(request.query_params.get('page', 1))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({'page': 'page 与 pageSize 必须是整数'}) from exc
+        page_size = min(max(page_size, 1), 100)
+        page = max(page, 1)
+        start = (page - 1) * page_size
+        serializer = PublicCommentSerializer(queryset[start:start + page_size], many=True)
         return Response({
             'code': 200,
             'message': 'success',
             'data': {
                 'items': serializer.data,
                 'total': queryset.count(),
-                'page': 1,
-                'pageSize': queryset.count(),
+                'page': page,
+                'pageSize': page_size,
             }
         })
     

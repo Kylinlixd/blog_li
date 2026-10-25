@@ -147,6 +147,24 @@ class UploadTypeValidationTests(SimpleTestCase):
         self.assertFalse(allowed)
         self.assertIn("扩展名", message)
 
+    def test_other_type_blocks_executable_and_web_script_extensions(self):
+        from apps.upload.views import validate_file_type
+
+        for name in ("payload.exe", "run.bat", "page.html", "phish.svg", "shell.php", "tool.msi"):
+            with self.subTest(name=name):
+                uploaded = SimpleUploadedFile(name, b"data", content_type="application/octet-stream")
+                allowed, message = validate_file_type(uploaded, "other")
+
+                self.assertFalse(allowed)
+
+    def test_other_type_still_allows_plain_documents(self):
+        from apps.upload.views import validate_file_type
+
+        for name in ("notes.md", "archive.zip", "data.json", "list.csv"):
+            with self.subTest(name=name):
+                uploaded = SimpleUploadedFile(name, b"data", content_type="application/octet-stream")
+                self.assertEqual((True, None), validate_file_type(uploaded, "other"))
+
 
 class UploadFileStorageModelTests(TestCase):
     def test_legacy_rows_default_to_local_storage(self):

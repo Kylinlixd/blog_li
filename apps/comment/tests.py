@@ -3,6 +3,8 @@ from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
+from datetime import timedelta
+from django.utils import timezone
 
 from apps.comment.models import Comment, CommentReadReceipt, CommentReadState
 from apps.comment.device import parse_client_metadata
@@ -196,6 +198,42 @@ class PublicCommentVisibilityTests(APITestCase):
         listed = self.client.get('/api/blog/comments/', {'dynamic_id': self.dynamic.pk})
         item = next(row for row in listed.data['data']['items'] if row['content'] == '带主页的评论')
         self.assertEqual(item['website'], 'https://example.com/profile')
+
+    def test_public_comment_rejects_non_http_website_scheme(self):
+        # website 会渲染成访客可见的链接，javascript: 等可执行协议必须在入口拦下
+        for website in ('javascript:alert(1)', 'data:text/html,<script>', 'ftp://example.com'):
+            with self.subTest(website=website):
+                response = self.client.post('/api/blog/comments/', {
+                    'dynamic_id': self.dynamic.pk,
+                    'content': '非法网址评论',
+                    'website': website,
+                }, format='json')
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertFalse(Comment.objects.filter(content='非法网址评论', website=website).exists())
+
+    def test_public_flat_list_paginates_for_real(self):
+        # 平铺模式此前忽略 page/pageSize 一次性返回全部评论，必须真实分页
+        now = timezone.now()
+        for index in range(12):
+            comment = Comment.objects.create(
+                author=self.user,
+                dynamic=self.dynamic,
+                content=f'分页评论 {index}',
+                status='approved',
+            )
+            Comment.objects.filter(pk=comment.pk).update(created_at=now - timedelta(minutes=index))
+
+        # setUp 里已有 1 条 approved（公开评论），合计 13 条
+        first = self.client.get('/api/blog/comments/', {'dynamic_id': self.dynamic.pk, 'page': 1, 'pageSize': 10})
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.data['data']['total'], 13)
+        self.assertEqual(len(first.data['data']['items']), 10)
+        self.assertEqual(first.data['data']['page'], 1)
+
+        second = self.client.get('/api/blog/comments/', {'dynamic_id': self.dynamic.pk, 'page': 2, 'pageSize': 10})
+        self.assertEqual(len(second.data['data']['items']), 3)
+        self.assertEqual(second.data['data']['page'], 2)
 
     def test_api_blog_prefix_allows_anonymous_comment_submission(self):
         response = self.client.post('/api/blog/comments/', {

@@ -37,6 +37,17 @@ ALLOWED_MIME_TYPES = {
     },
 }
 
+# file_type='other' 不设白名单（zip/md/txt 等都应能传），但必须挡掉
+# 浏览器同源可执行（html/svg）、系统双击可执行（exe/bat 等）和
+# 服务端脚本（php/jsp 等）扩展名——它们一旦进入 /media/ 直出目录，
+# 就是公开站点上的持久化脚本/钓鱼载体。
+BLOCKED_OTHER_EXTENSIONS = {
+    'html', 'htm', 'xhtml', 'svg',
+    'exe', 'dll', 'com', 'scr', 'msi', 'bat', 'cmd', 'ps1',
+    'vbs', 'vbe', 'wsf', 'wsh', 'hta',
+    'php', 'phtml', 'jsp', 'jspx', 'asp', 'aspx', 'cgi',
+}
+
 
 def _read_header(uploaded_file, size=16):
     try:
@@ -84,6 +95,9 @@ def validate_file_type(file, file_type):
     extension = os.path.splitext(file.name)[1].lower().lstrip('.')
     if file_type in ALLOWED_EXTENSIONS and extension not in ALLOWED_EXTENSIONS[file_type]:
         return False, f'不支持的文件扩展名，请上传{file_type}类型的文件'
+
+    if file_type == 'other' and extension in BLOCKED_OTHER_EXTENSIONS:
+        return False, '不支持上传可执行文件、网页或服务端脚本类型的文件'
 
     content_type = (getattr(file, 'content_type', '') or '').lower()
     if file_type in ALLOWED_MIME_TYPES and content_type not in ALLOWED_MIME_TYPES[file_type]:

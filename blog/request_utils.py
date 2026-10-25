@@ -17,7 +17,14 @@ def get_client_ip(request):
         return remote_addr or None
 
     forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
-    return (forwarded.split(',')[0].strip() if forwarded else remote_addr) or None
+    if forwarded:
+        # 信任链只有一跳（nginx → gunicorn）。nginx 的 $proxy_add_x_forwarded_for
+        # 把真实来源追加在末尾，前面的条目全部是客户端自报、可任意伪造，
+        # 因此只认最后一跳。
+        last_hop = forwarded.split(',')[-1].strip()
+        if last_hop:
+            return last_hop
+    return remote_addr or None
 
 
 def is_public_blog_request(request):

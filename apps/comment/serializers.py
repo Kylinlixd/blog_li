@@ -62,6 +62,11 @@ class CommentSerializer(serializers.ModelSerializer):
         return obj.parent.nickname if obj.parent_id and obj.parent else ''
 
     def get_reply_count(self, obj):
+        # 列表查询统一 annotate approved_reply_count，避免每行一次 COUNT；
+        # 未走注解的调用方（如后台单条）退回原查询
+        annotated = getattr(obj, 'approved_reply_count', None)
+        if annotated is not None:
+            return annotated
         return obj.replies.filter(status='approved').count()
 
     def get_is_unread(self, obj):
@@ -96,6 +101,16 @@ class CommentCreateSerializer(serializers.ModelSerializer):
             normalized = re.sub(r'[\W_]+', '', value.casefold(), flags=re.UNICODE)
             if any(re.sub(r'[\W_]+', '', term.casefold(), flags=re.UNICODE) in normalized for term in REJECTED_CONTENT_TERMS):
                 raise serializers.ValidationError('评论包含暴力、涉黄或其他违规内容，请规范言辞后重试。')
+        return value
+
+    def validate_website(self, value):
+        # 该字段最终会渲染成访客可见的链接，仅放行 http(s)，
+        # 阻断 javascript:/data: 等可执行协议的存储型 XSS。
+        value = (value or '').strip()
+        if not value:
+            return ''
+        if not value.lower().startswith(('http://', 'https://')):
+            raise serializers.ValidationError('网址必须以 http:// 或 https:// 开头')
         return value
 
     def validate(self, attrs):

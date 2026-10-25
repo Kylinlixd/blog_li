@@ -20,6 +20,7 @@ from apps.dynamic.models import Dynamic
 from apps.tag.models import Tag
 
 SITEMAP_CACHE_SECONDS = 60 * 15
+FEED_CACHE_SECONDS = 60 * 15
 
 
 def _site_url():
@@ -85,8 +86,9 @@ class SitemapView(View):
         return _xml_response('\n'.join(body))
 
 
+@method_decorator(cache_page(FEED_CACHE_SECONDS), name='__call__')
 class ArticleFeed(Feed):
-    """RSS 2.0：最近 20 篇已发布文章。"""
+    """RSS 2.0：最近 20 篇已发布文章（15 分钟页缓存，与 sitemap 同策略）。"""
 
     title = '时不语之间'
     link = '/blog/'

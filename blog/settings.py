@@ -170,6 +170,10 @@ CACHES = {
     }
 }
 
+# AccessLog 落库方式：默认走内存队列由后台线程批量写入（响应路径不再
+# 阻塞 INSERT）；置 True 切回每请求同步写（部分测试依赖立即可见）。
+ACCESS_LOG_SYNC = False
+
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -259,6 +263,10 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    # 生产链路是 nginx($proxy_add_x_forwarded_for) → gunicorn(loopback) 一跳。
+    # DRF 限流键因此取 XFF 最后一跳；不设此项时 DRF 用整个 XFF 字符串作键，
+    # 客户端轮换伪造 XFF 即可绕过全部匿名限流（含登录爆破与匿名评论）。
+    'NUM_PROXIES': 1,
     'DEFAULT_THROTTLE_RATES': {
         'login': '10/minute',
         'public_comment': '10/minute',
@@ -266,6 +274,7 @@ REST_FRAMEWORK = {
         'public_like': '30/minute',
         'public_view': '120/minute',
         'public_search': '60/minute',
+        'public_list': '120/minute',
     },
     'EXCEPTION_HANDLER': 'blog.exception_handler.custom_exception_handler',
 }
