@@ -17,7 +17,6 @@ from apps.dynamic.serializers import (
     DynamicListSerializer, PublicDynamicListSerializer, _media_urls,
 )
 from django.db.models import Q, F, Count, Prefetch
-from django.db.models.functions import TruncMonth
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
@@ -273,28 +272,32 @@ class DynamicViewSet(ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='timeline')
     def timeline(self, request):
-        # 归档月份计数走 DB 聚合并缓存：原来每请求把全部已发布文章的
-        # created_at 拉到 Python 里逐行计数，文章越多越慢。
-        # 新文章发布后最多延迟 5 分钟出现，与公开页缓存语义一致。
+        # 归档月份计数结果缓存 5 分钟：原来每请求把全部已发布文章的
+        # created_at 拉到 Python 逐行计数。月份聚合故意留在 Python 而不是
+        # TruncMonth——生产 MySQL 没装时区表，把 localtime 推给数据库会 500
+        # （本地 SQLite 测不出来）；新文章上线最多延迟 5 分钟出现。
         cache_key = 'blog:timeline:v1'
         items = cache.get(cache_key)
         if items is None:
-            month_counts = (
+            counts = {}
+            published_at = (
                 Dynamic.objects.filter(status='published')
-                .annotate(month_start=TruncMonth('created_at'))
-                .values('month_start')
-                .annotate(count=Count('id'))
-                .order_by('-month_start')
+                .values_list('created_at', flat=True)
             )
+            for value in published_at:
+                local = timezone.localtime(value)
+                key = (local.year, local.month)
+                counts[key] = counts.get(key, 0) + 1
+
             items = [
                 {
-                    'key': row['month_start'].strftime('%Y-%m'),
-                    'year': row['month_start'].year,
-                    'month': row['month_start'].month,
-                    'monthLabel': f"{row['month_start'].month}月",
-                    'count': row['count'],
+                    'key': f'{year}-{month:02d}',
+                    'year': year,
+                    'month': month,
+                    'monthLabel': f'{month}月',
+                    'count': counts[(year, month)],
                 }
-                for row in month_counts
+                for year, month in sorted(counts, reverse=True)
             ]
             cache.set(cache_key, items, 300)
         return Response({

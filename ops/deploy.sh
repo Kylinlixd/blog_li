@@ -35,7 +35,10 @@ echo "==> 3.5/6 数据库迁移"
 ssh "$SERVER" "cd '${REMOTE_DIR}' && set -a && . ./.env && set +a && .venv/bin/python manage.py migrate --no-input"
 
 echo "==> 4/6 远端回归测试"
-ssh "$SERVER" "cd '${REMOTE_DIR}' && set -a && . ./.env && set +a && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py test apps.dynamic.tests_audit_fixes 2>&1 | tail -4"
+# DJANGO_CACHE_DIR 必须与生产 .cache 隔离：回归测试以 root 运行，
+# 一旦把 root 属主的缓存文件写进生产缓存目录，blog 用户的 gunicorn
+# 读取时会 PermissionError，所有走缓存的接口（限流/搜索/评论）500。
+ssh "$SERVER" "cd '${REMOTE_DIR}' && set -a && . ./.env && set +a && PYTHONDONTWRITEBYTECODE=1 DJANGO_CACHE_DIR=/tmp/blog-li-test-cache .venv/bin/python manage.py test apps.dynamic.tests_audit_fixes 2>&1 | tail -4"
 
 echo "==> 5/6 重启服务"
 ssh "$SERVER" "systemctl restart blog-li && sleep 4 && echo -n 'blog-li: ' && systemctl is-active blog-li"
