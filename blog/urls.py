@@ -22,9 +22,10 @@ from rest_framework.routers import DefaultRouter
 from django.http import JsonResponse
 
 from apps.user.views import UserViewSet, CookieTokenRefreshView
+from apps.dynamic.translation_view import DynamicTranslationView
 from apps.dynamic.views import (
     DynamicViewSet, HotDynamicsView, RecentDynamicsView, 
-    CategoryDynamicsView, SearchView, TagDynamicsView
+    CategoryDynamicsView, SearchView, TagDynamicsView,
 )
 from apps.category.views import CategoryViewSet, BlogCategoriesView
 from apps.collection.views import BlogCollectionViewSet, CollectionAdminViewSet
@@ -65,6 +66,7 @@ public_blog_api_patterns = [
     path('dynamics/hot/', HotDynamicsView.as_view({'get': 'list'}), name='api-hot-dynamics'),
     path('dynamics/recent/', RecentDynamicsView.as_view({'get': 'list'}), name='api-recent-dynamics'),
     path('dynamics/<int:pk>/', DynamicViewSet.as_view({'get': 'retrieve'}), name='api-blog-dynamic-detail'),
+    path('dynamics/<int:pk>/translation/', DynamicTranslationView.as_view(), name='api-dynamic-translation'),
     path('dynamics/<int:pk>/adjacent/', DynamicViewSet.as_view({'get': 'adjacent'}), name='api-dynamic-adjacent'),
     path('dynamics/<int:pk>/like/', DynamicViewSet.as_view({'post': 'like'}), name='api-dynamic-like'),
     path('dynamics/<int:pk>/view/', DynamicViewSet.as_view({'put': 'view'}), name='api-dynamic-view'),

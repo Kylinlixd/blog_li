@@ -174,6 +174,16 @@ CACHES = {
 # 阻塞 INSERT）；置 True 切回每请求同步写（部分测试依赖立即可见）。
 ACCESS_LOG_SYNC = False
 
+# ---------- 文章机器翻译（公开接口 /api/blog/dynamics/<id>/translation/）----------
+# provider=auto：配置了 TRANSLATION_API_KEY 走 OpenAI 兼容接口，否则走 Google 免费端点
+TRANSLATION_PROVIDER = os.getenv('TRANSLATION_PROVIDER', 'auto')
+TRANSLATION_API_KEY = os.getenv('TRANSLATION_API_KEY', '')
+TRANSLATION_BASE_URL = os.getenv('TRANSLATION_BASE_URL', 'https://api.openai.com/v1')
+TRANSLATION_OPENAI_MODEL = os.getenv('TRANSLATION_OPENAI_MODEL', 'gpt-4o-mini')
+TRANSLATION_DAILY_CAP = int(os.getenv('TRANSLATION_DAILY_CAP', '120'))
+TRANSLATION_IP_COOLDOWN = int(os.getenv('TRANSLATION_IP_COOLDOWN', '45'))
+TRANSLATION_TIMEOUT = int(os.getenv('TRANSLATION_TIMEOUT', '45'))
+
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

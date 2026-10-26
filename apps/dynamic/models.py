@@ -73,3 +73,36 @@ class DynamicLike(models.Model):
 
     def __str__(self):
         return f"{self.ip_address} liked {self.dynamic.title}"
+
+
+class DynamicTranslation(models.Model):
+    """文章的机器翻译缓存：一篇文章 × 一种语言只翻译一次，之后直接读库。"""
+
+    LANG_CHOICES = (
+        ('en', 'English'),
+        ('ja', '日本語'),
+        ('ko', '한국어'),
+        ('es', 'Español'),
+        ('fr', 'Français'),
+    )
+
+    dynamic = models.ForeignKey(Dynamic, on_delete=models.CASCADE, related_name='translations')
+    lang = models.CharField(max_length=8, choices=LANG_CHOICES)
+    title = models.CharField(max_length=400, help_text="翻译后的标题")
+    content = models.TextField(help_text="翻译后的正文（保留 Markdown 结构与代码块）")
+    provider = models.CharField(max_length=32, blank=True, default='', help_text="翻译来源，便于排查质量")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'dynamic_translation'
+        ordering = ['lang']
+        constraints = [
+            models.UniqueConstraint(fields=['dynamic', 'lang'], name='unique_dynamic_translation'),
+        ]
+        indexes = [
+            models.Index(fields=['lang', 'dynamic']),
+        ]
+
+    def __str__(self):
+        return f"{self.dynamic_id}#{self.lang}"
