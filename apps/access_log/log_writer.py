@@ -62,10 +62,13 @@ def _ensure_worker():
 
 
 def _run_worker():
-    from django.db import close_old_connections
-
     while True:
-        batch = [_queue.get()]
+        item = _queue.get()
+        # 哨兵可能恰好排在队首：直接消化掉，绝不能混进批量数据里写库
+        if isinstance(item, _FlushSentinel):
+            item.done.set()
+            continue
+        batch = [item]
         deadline = time.monotonic() + _FLUSH_INTERVAL
         flush_now = False
         while len(batch) < _FLUSH_BATCH:
@@ -89,6 +92,9 @@ def _run_worker():
 
 
 def _write_batch(batch):
+    # close_old_connections 必须在这里导入：批量落库跑在独立线程，
+    # 连接老化检查随每次写库执行，避免测试环境与长驻线程里的连接堆积
+    from django.db import close_old_connections
     from .models import AccessLog
 
     try:

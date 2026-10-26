@@ -27,6 +27,19 @@ class AccessLogTests(APITestCase):
         log = AccessLog.objects.get(path='/api/stats/', ip_address='203.0.113.8', user=self.user)
         self.assertEqual((log.device_type, log.device_model), ('mobile', 'iPhone'))
 
+    def test_async_batch_writer_persists_rows(self):
+        # 回归：_write_batch 曾因 close_old_connections 局部导入缺失而每批 NameError，
+        # 被 except 吞掉导致线上异步访问日志断流（2026-10 修复）。
+        # 直接调用写库函数验证（异步线程在 SQLite 内存库测试下无法共享主线程连接）
+        from .log_writer import _write_batch
+
+        _write_batch([dict(
+            ip_address='203.0.113.9', method='GET', path='/api/stats/',
+            status_code=200, user_agent='', device_type='desktop',
+            device_model='', user=None, security_rule=None, security_action='',
+        )])
+        self.assertTrue(AccessLog.objects.filter(path='/api/stats/', ip_address='203.0.113.9').exists())
+
     def test_device_parser_identifies_common_models(self):
         self.assertEqual(parse_user_agent('Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/UP1A)'), ('mobile', 'Pixel 8'))
         self.assertEqual(parse_user_agent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'), ('computer', 'Mac 电脑'))
