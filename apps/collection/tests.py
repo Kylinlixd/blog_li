@@ -1,3 +1,6 @@
+from datetime import datetime as dt
+from datetime import timezone as dt_timezone
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -154,3 +157,55 @@ class CollectionAdminApiTests(APITestCase):
         response = self.client.get('/api/collections/options/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual([entry['title'] for entry in response.data['data']], ['Java 技术文章合集'])
+
+
+class BlogCollectionPublicApiTests(APITestCase):
+    """前台合集目录：默认从最早看起，order=latest 按发布时间倒序。"""
+
+    def setUp(self):
+        self.author = get_user_model().objects.create_user(
+            username='blog-reader-author',
+            email='blog-reader-author@example.com',
+            password='x',
+        )
+        self.collection = Collection.objects.create(
+            title='读书笔记专栏', description='每周一篇', series='读书笔记', status='active'
+        )
+        self.fixtures = [
+            # (sort, 标题, 发布时间) 刻意让目录顺序与时间顺序不同，证明排序真实生效
+            (1, '最早发布', dt(2026, 8, 2, 20, 30, tzinfo=dt_timezone.utc)),
+            (2, '最新发布', dt(2026, 10, 4, 20, 30, tzinfo=dt_timezone.utc)),
+            (3, '中间发布', dt(2026, 9, 6, 20, 30, tzinfo=dt_timezone.utc)),
+        ]
+        for sort, title, created_at in self.fixtures:
+            dynamic = Dynamic.objects.create(
+                author=self.author, title=title, content='正文', status='published'
+            )
+            Dynamic.objects.filter(pk=dynamic.pk).update(created_at=created_at)
+            CollectionItem.objects.create(
+                collection=self.collection, dynamic=dynamic, sort=sort
+            )
+        self.draft = Dynamic.objects.create(
+            author=self.author, title='未发布草稿', content='内容', status='draft'
+        )
+        CollectionItem.objects.create(
+            collection=self.collection, dynamic=self.draft, sort=4
+        )
+
+    def fetch_titles(self, query=''):
+        response = self.client.get(f'/api/blog/collections/{self.collection.pk}/{query}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['code'], 200)
+        return [item['title'] for item in response.data['data']['items']]
+
+    def test_default_returns_collection_order_without_drafts(self):
+        self.assertEqual(self.fetch_titles(), ['最早发布', '最新发布', '中间发布'])
+
+    def test_order_latest_returns_publish_time_desc(self):
+        self.assertEqual(self.fetch_titles('?order=latest'), ['最新发布', '中间发布', '最早发布'])
+
+    def test_order_latest_is_case_insensitive(self):
+        self.assertEqual(self.fetch_titles('?order=LATEST'), ['最新发布', '中间发布', '最早发布'])
+
+    def test_unknown_order_falls_back_to_collection_order(self):
+        self.assertEqual(self.fetch_titles('?order=bogus'), ['最早发布', '最新发布', '中间发布'])

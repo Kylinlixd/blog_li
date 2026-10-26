@@ -70,11 +70,16 @@ class BlogCollectionViewSet(ViewSet):
         collection = Collection.objects.filter(pk=pk, status='active').first()
         if collection is None:
             return Response({'code': 404, 'message': '合集不存在', 'data': None}, status=404)
+        # order=latest 按发布时间倒序（最新优先）；默认合集目录顺序（sort 升序，从最早看起）
+        if request.query_params.get('order', '').strip().lower() == 'latest':
+            ordering = ('-dynamic__created_at', '-sort', '-id')
+        else:
+            ordering = ('sort', 'id')
         items = (
             collection.items
             .filter(dynamic__status='published')
             .select_related('dynamic')
-            .order_by('sort', 'id')
+            .order_by(*ordering)
         )
         serializer = CollectionDetailSerializer(collection)
         data = serializer.data
