@@ -14,6 +14,7 @@ Markdown 处理策略：按「围栏代码块 / 普通段落」切分，代码�
 """
 import logging
 import re
+import time
 
 import requests
 from django.conf import settings
@@ -108,15 +109,38 @@ def _merge_chunks(chunks, limit=1200):
 
 
 def _translate_google(text, lang):
-    resp = requests.get(
-        "https://translate.googleapis.com/translate_a/single",
-        params={"client": "gtx", "sl": "zh-CN", "tl": lang, "dt": "t", "q": text},
-        timeout=getattr(settings, "TRANSLATION_TIMEOUT", 25),
-        headers={"User-Agent": "Mozilla/5.0 (compatible; SilentTimeBot/1.0)"},
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return "".join(part[0] for part in data[0] if part and part[0])
+    """Google 免费通道：dict-chrome-ex 客户端（gtx 客户端对机房 IP 已稳定 429）。
+
+    响应两种形态都可能出现：["译文"] 或 [["译文","备选"],...]，做兼容解析。
+    """
+    last_error = None
+    for attempt in range(2):
+        try:
+            resp = requests.get(
+                "https://clients5.google.com/translate_a/t",
+                params={"client": "dict-chrome-ex", "sl": "zh-CN", "tl": lang, "q": text},
+                timeout=getattr(settings, "TRANSLATION_TIMEOUT", 25),
+                headers={"User-Agent": "Mozilla/5.0 (compatible; SilentTimeBot/1.0)"},
+            )
+            if resp.status_code in (429, 500, 502, 503) and attempt == 0:
+                time.sleep(1.5)
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list) and data:
+                first = data[0]
+                if isinstance(first, str):
+                    return first
+                if isinstance(first, list):
+                    return "".join(part[0] for part in data if part and part[0])
+            raise ValueError(f"无法解析的响应: {str(data)[:80]}")
+        except (requests.RequestException, ValueError) as exc:
+            last_error = exc
+            if attempt == 0 and isinstance(exc, requests.RequestException):
+                time.sleep(1.5)
+                continue
+            break
+    raise last_error
 
 
 def _translate_openai(text, lang):
